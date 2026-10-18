@@ -175,6 +175,35 @@ switches at sunset takes the site with it.
 out with the same background twice. It needs Playwright installed locally and
 is not part of CI (CI has no browser).
 
+## Backdrop
+
+Every page sits on a fixed, decorative layer (`components/SiteBackdrop.tsx`): a
+slow orb of light strands and dust drawn with WebGL (`ogl`), over two CSS
+radial washes in the site's own green and marigold.
+
+- **It follows the theme.** The orb reads `<html data-theme>` first and the
+  operating-system preference second — exactly the rule the stylesheet uses —
+  and watches the attribute, so flipping the header toggle changes its palette
+  without a reload. Light pages get forest ink on paper; dark pages get mint
+  light on near-black.
+- **It is never load-bearing.** The CSS wash is the complete background on its
+  own. The canvas is not mounted at all when `prefers-reduced-motion: reduce`,
+  when the reader has Data Saver on, or on devices reporting ≤ 2 GB of memory,
+  and a refused WebGL context is caught rather than thrown.
+- **It cannot intercept anything.** The layer is `aria-hidden`, has
+  `pointer-events: none`, and stays at `z-index: 0`; `main` and the footer are
+  positioned later in the document, so content paints above it without turning
+  either into a stacking context (dialogs keep layering over the header).
+- **It is deliberately faint.** Opacity is 0.5 in the light theme and 0.36 in
+  dark, because the glow is much brighter than the ink; the orb is decoration
+  behind text, never a surface for it. The engine also caps its device pixel
+  ratio from a 3.2 MP budget and scales particles by width (4,200 on phones,
+  11,000 on desktop).
+- **Cost.** The engine is a lazily imported chunk, mounted ~700 ms after first
+  paint. To remove the backdrop entirely, delete `<SiteBackdrop />` from
+  `app/layout.tsx`; to keep the wash but never the canvas, add
+  `.site-backdrop__orb { display: none }`.
+
 ## Server health panel
 
 **Admin → Overview** shows two live nodes side by side: the Next.js deployment

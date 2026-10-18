@@ -11,6 +11,7 @@ import { currentUser } from "@/lib/session";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { RouteProgress } from "@/components/RouteProgress";
+import { SiteBackdrop } from "@/components/SiteBackdrop";
 import { OfflineGate } from "@/components/OfflineGate";
 import { SITE, jsonLdString, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import { THEME_COOKIE, parseTheme, themeAttribute } from "@/lib/theme";
@@ -97,6 +98,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" data-theme={themeAttribute(theme)} suppressHydrationWarning>
       <body>
+        <SiteBackdrop />
         <a className="skip-link" href="#main">
           Skip to content
         </a>

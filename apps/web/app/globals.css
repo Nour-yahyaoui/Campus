@@ -236,6 +236,71 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Backdrop ------------------------------------------------------------
+   A fixed, decorative layer behind every page. The gradients are the base
+   wash *and* the whole fallback: when the canvas is absent — reduced motion,
+   data saver, no WebGL, or the half-second before its chunk loads — the page
+   still has depth. Nothing here takes a pointer event, and every real surface
+   is lifted above it, so this can never sit between a reader and a control. */
+
+.site-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 58vmax at 50% 10%, color-mix(in oklab, var(--forest) 9%, transparent), transparent 72%),
+    radial-gradient(circle 46vmax at 86% 88%, color-mix(in oklab, var(--marigold) 8%, transparent), transparent 70%);
+}
+
+.site-backdrop__orb {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(118vmin, 980px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  opacity: 0.5;
+}
+
+/* The same orb, less of it, at night: the glow is far brighter than the ink
+   drawing, so opacity — not colour — is what keeps body text legible. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-backdrop__orb {
+    opacity: 0.36;
+  }
+}
+
+:root[data-theme="dark"] .site-backdrop__orb {
+  opacity: 0.36;
+}
+
+@media (max-width: 640px) {
+  .site-backdrop__orb {
+    top: 34%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-backdrop__orb {
+    display: none;
+  }
+}
+
+@media print {
+  .site-backdrop {
+    display: none;
+  }
+}
+
+.crystalized-ball {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -308,6 +373,10 @@ hr {
 }
 
 .site-main {
+  /* Positioned but with no z-index: it paints above the backdrop because it
+     comes later in the document, yet it does not create a stacking context,
+     so a dialog inside a page still layers above the sticky header. */
+  position: relative;
   min-height: 62vh;
   padding-bottom: 4rem;
 }
@@ -1350,6 +1419,7 @@ table.data tr:last-child td {
 /* Footer ------------------------------------------------------------- */
 
 .site-footer {
+  position: relative;
   border-top: 1px solid var(--line);
   background: var(--paper-sunken);
   padding: 36px 0 44px;
