@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { buildCsp, storageOrigins } from "./lib/csp";
 
 /**
  * Next.js 16 calls this file `proxy.ts`; it is the same request pipeline that
@@ -29,20 +30,18 @@ export default function proxy(request: NextRequest) {
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV !== "production";
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data:",
-    "connect-src 'self'",
-    "media-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    ...(isDev ? [] : ["upgrade-insecure-requests"]),
-  ].join("; ");
+  const csp = buildCsp({
+    nonce,
+    isDev,
+    // Uploads go browser -> storage with a presigned PUT. Without these the
+    // browser blocks the request and every image upload fails on a host where
+    // the app and the bucket are different origins.
+    connectOrigins: storageOrigins({
+      AWS_ENDPOINT_URL_S3: process.env.AWS_ENDPOINT_URL_S3,
+      S3_ENDPOINT: process.env.S3_ENDPOINT,
+      STORAGE_PUBLIC_BASE_URL: process.env.STORAGE_PUBLIC_BASE_URL,
+    }),
+  });
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);

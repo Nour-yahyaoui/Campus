@@ -144,6 +144,22 @@ claim of resilience is made. Reads only: the fallback refuses writes, so a
 failover degrades to "browse works, changes pause" — which is the honest
 behaviour for an API whose write path depends on the primary.
 
+## Where the migrations live at runtime
+
+`/api/initialize` applies the same seven migrations as `npm run db:migrate`, from
+the same ledger and with the same checksums. It reads `migrations/*.sql` when the
+repository is on disk (Render, Docker, local) and falls back to a copy compiled
+into the app (`packages/core/src/migrations.generated.ts`) when it is not — a
+Vercel build, for example, ships only the output of `next build`.
+
+If you add or edit a migration, regenerate that copy and commit it:
+
+```bash
+npm run db:embed-migrations
+```
+
+`npm test` fails if the two copies disagree.
+
 ## Environment variables
 
 | Variable | Required | Notes |

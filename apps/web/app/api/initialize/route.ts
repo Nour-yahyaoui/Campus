@@ -19,7 +19,7 @@ interface Summary {
   alreadyInitialized?: boolean;
   changed?: boolean;
   state?: Pick<DatabaseState, "schemaReady" | "superAdmins">;
-  migrations?: { appliedNow: string[]; total: number; pending: string[] };
+  migrations?: { appliedNow: string[]; total: number; pending: string[]; source?: "filesystem" | "embedded" };
   admin?: { email: string; created: boolean } | null;
   adminError?: string | null;
   nextSteps?: string[];
@@ -123,6 +123,7 @@ async function handle(request: Request): Promise<Response> {
       appliedNow,
       total: status?.total ?? total,
       pending: status?.pending ?? [],
+      source: status?.source,
     },
     admin,
     adminError,

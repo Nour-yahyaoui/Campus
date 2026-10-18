@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyPendingMigrations, listMigrationFiles, migrationStatus, migrationsDirectory } from "../src/migrations";
+import os from "node:os";
+import { applyPendingMigrations, listMigrationFiles, migrationFiles, migrationStatus, migrationsDirectory } from "../src/migrations";
+import { EMBEDDED_MIGRATIONS } from "../src/migrations.generated";
 import { query } from "../src/db";
 
 /**
@@ -29,6 +31,39 @@ describe("schema application", () => {
     expect(result.applied).toEqual([]);
     expect(result.alreadyApplied).toBe(result.total);
     expect(result.total).toBeGreaterThanOrEqual(7);
+  });
+
+  it("ships the compiled-in copy in sync with migrations/", async () => {
+    // A serverless bundle has no migrations/ folder, so the SQL is compiled in.
+    // If these two ever diverge, /api/initialize would create a different schema
+    // depending on where it runs — and its checksums would fight the CLI.
+    const fromDisk = await listMigrationFiles();
+    expect(EMBEDDED_MIGRATIONS.map((m) => m.name)).toEqual(fromDisk.map((f) => f.name));
+    for (const [index, embedded] of EMBEDDED_MIGRATIONS.entries()) {
+      expect(embedded.checksum).toBe(fromDisk[index]!.checksum);
+      expect(embedded.sql).toBe(fromDisk[index]!.sql);
+    }
+  });
+
+  it("uses the .sql files when they are on disk", async () => {
+    const source = await migrationFiles();
+    expect(source.embedded).toBe(false);
+    expect(source.directory).not.toBeNull();
+  });
+
+  it("falls back to the embedded copy when the directory is absent", async () => {
+    // A serverless bundle has no migrations/ folder at all. Standing in a
+    // directory without one is the closest honest reproduction.
+    const original = process.cwd();
+    process.chdir(os.tmpdir());
+    try {
+      const source = await migrationFiles();
+      expect(source.embedded).toBe(true);
+      expect(source.directory).toBeNull();
+      expect(source.files.map((file) => file.name)).toEqual(EMBEDDED_MIGRATIONS.map((m) => m.name));
+    } finally {
+      process.chdir(original);
+    }
   });
 
   it("keeps the same ledger format as the CLI so either path recognises the other", async () => {

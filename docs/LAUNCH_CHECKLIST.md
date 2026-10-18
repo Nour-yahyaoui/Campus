@@ -12,7 +12,7 @@ unproven.
 | --- | --- | --- | --- |
 | 1 | Web and fallback production builds | ✅ verified | `npm run build` in `apps/web`, `apps/next-fallback`; `next start` smoke (12 web checks) and `npm run smoke` with the fallback (16 checks) green on 2026-10-18 |
 | 2 | TypeScript strict typecheck (4 workspaces) | ✅ verified | `npm run typecheck` |
-| 3 | Integration tests on real PostgreSQL | ✅ 88/88 | `npm test` (15 files) |
+| 3 | Integration tests on real PostgreSQL | ✅ 96/96 | `npm test` (16 files) |
 | 4 | Migrations apply with checksum verification | ✅ 7/7 | `npm run db:migrate`, `db:status` |
 | 5 | Schema invariants | ✅ | `npm run db:verify` |
 | 6 | Rust fmt + Clippy + tests + release build | ⛔ **open** | no toolchain/crates.io here; CI job is defined but has never run |

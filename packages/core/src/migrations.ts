@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { transaction } from "./db";
+import { EMBEDDED_MIGRATIONS } from "./migrations.generated";
 
 /**
  * Schema application, usable from both the CLI (`scripts/db.mjs`) and the app
@@ -18,8 +19,16 @@ export interface MigrationFile {
   checksum: string;
 }
 
+export interface MigrationSource {
+  /** Absolute path when the .sql files are readable, null when embedded ones are used. */
+  directory: string | null;
+  embedded: boolean;
+  files: MigrationFile[];
+}
+
 export interface MigrationStatus {
-  directory: string;
+  directory: string | null;
+  source: "filesystem" | "embedded";
   applied: string[];
   pending: string[];
   /** Applied migrations whose file changed afterwards — a release error. */
@@ -57,16 +66,36 @@ export async function migrationsDirectory(): Promise<string> {
   );
 }
 
+/**
+ * Disk when the repository is present (development, Render, Docker), the
+ * compiled-in copy otherwise (a serverless bundle that ships only the app).
+ * Both carry identical names and checksums — a test enforces that — so a
+ * database created either way looks the same to the CLI.
+ */
+export async function migrationFiles(): Promise<MigrationSource> {
+  try {
+    const directory = await migrationsDirectory();
+    const names = (await fs.readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+    if (names.length === 0) throw new Error(`No .sql migrations in ${directory}`);
+    const files = await Promise.all(
+      names.map(async (name) => {
+        const sql = await fs.readFile(path.join(directory, name), "utf8");
+        return { name, sql, checksum: checksum(sql) };
+      }),
+    );
+    return { directory, embedded: false, files };
+  } catch (error) {
+    if (EMBEDDED_MIGRATIONS.length === 0) throw error;
+    return {
+      directory: null,
+      embedded: true,
+      files: EMBEDDED_MIGRATIONS.map((migration) => ({ ...migration })),
+    };
+  }
+}
+
 export async function listMigrationFiles(): Promise<MigrationFile[]> {
-  const directory = await migrationsDirectory();
-  const names = (await fs.readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
-  if (names.length === 0) throw new Error(`No .sql migrations in ${directory}`);
-  return Promise.all(
-    names.map(async (name) => {
-      const sql = await fs.readFile(path.join(directory, name), "utf8");
-      return { name, sql, checksum: checksum(sql) };
-    }),
-  );
+  return (await migrationFiles()).files;
 }
 
 async function readLedger(client: {
@@ -88,8 +117,8 @@ async function ensureLedger(client: { query: (sql: string) => Promise<unknown> }
 
 /** Read-only view; safe to call on an empty database (it creates only the ledger). */
 export async function migrationStatus(): Promise<MigrationStatus> {
-  const directory = await migrationsDirectory();
-  const files = await listMigrationFiles();
+  const source = await migrationFiles();
+  const { files } = source;
   const applied = await transaction(
     async (client) => {
       await ensureLedger(client);
@@ -102,7 +131,8 @@ export async function migrationStatus(): Promise<MigrationStatus> {
     .filter((file) => applied.has(file.name) && applied.get(file.name) !== file.checksum)
     .map((file) => file.name);
   return {
-    directory,
+    directory: source.directory,
+    source: source.embedded ? "embedded" : "filesystem",
     applied: [...applied.keys()].sort(),
     pending,
     changed,

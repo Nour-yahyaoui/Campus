@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | TypeScript typecheck (web, fallback, core, contracts) | `npm run typecheck` | ✅ passes |
 | Production builds (web, fallback) | `npm run build` | ✅ passes |
-| Integration tests (real PostgreSQL 16) | `npm test` | ✅ 88 tests / 15 files |
+| Integration tests (real PostgreSQL 16) | `npm test` | ✅ 96 tests / 16 files |
 | Migration checksums and application | `npm run db:migrate`, `npm run db:status` | ✅ 7/7 |
 | Schema invariants | `npm run db:verify` | ✅ passes |
 | Rust fmt/clippy/test/build | `cargo …` | ❌ **not run** — no toolchain/crates.io in this sandbox |
