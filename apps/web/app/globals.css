@@ -951,6 +951,13 @@ hr {
 
 /* Sections ----------------------------------------------------------- */
 
+.page-solid {
+  /* Opaque from the hero down. The backdrop is fixed, so this is what ends it:
+     scroll past the hero and the orb is behind paper, not behind text. */
+  position: relative;
+  background: var(--paper);
+}
+
 .section {
   padding: 40px 0 8px;
 }

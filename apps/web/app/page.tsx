@@ -215,92 +215,96 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section">
-        <div className="shell">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">What&apos;s next</p>
-              <h2>Upcoming on campus</h2>
-              <p>Workshops, demos, meetups and the occasional free pizza.</p>
-            </div>
-            <Link className="btn btn-secondary btn-sm" href="/events">
-              All events
-            </Link>
-          </div>
-          <Suspense fallback={<EventRowsSkeleton count={4} />}>
-            <UpcomingEvents />
-          </Suspense>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="shell">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Find your people</p>
-              <h2>Clubs with open doors</h2>
-              <p>Open clubs let you join instantly. Others review a short request.</p>
-            </div>
-            <Link className="btn btn-secondary btn-sm" href="/clubs">
-              All clubs
-            </Link>
-          </div>
-          <Suspense fallback={<ClubCardsSkeleton count={3} />}>
-            <OpenClubs />
-          </Suspense>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="shell">
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Build something</p>
-              <h2>Projects looking for hands</h2>
-              <p>Every project is reviewed before it appears publicly.</p>
-            </div>
-            <Link className="btn btn-secondary btn-sm" href="/projects">
-              All projects
-            </Link>
-          </div>
-          <Suspense fallback={<ProjectCardsSkeleton count={3} />}>
-            <OpenProjects />
-          </Suspense>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="shell">
-          <div className="panel" style={{ background: "#24503c", color: "#fffdf8", borderColor: "#17392a" }}>
-            <div className="split">
+      {/* From here down the page is opaque: the fixed orb stays in the hero and
+          cannot show through the reading area. */}
+      <div className="page-solid">
+        <section className="section">
+          <div className="shell">
+            <div className="section-head">
               <div>
-                <p className="eyebrow" style={{ color: "#e7c79a" }}>
-                  How it works
-                </p>
-                <h2 style={{ color: "#fffdf8", fontSize: "clamp(1.6rem, 4vw, 2.2rem)" }}>
-                  Browse as a guest. Sign in only when it counts.
-                </h2>
-                <p style={{ color: "#d9e3d9", maxWidth: "60ch" }}>
-                  Reading club pages, event details and project descriptions never requires an account.
-                  Google sign-in is used for applications, registrations, posts and roles — and sessions
-                  live in secure, HttpOnly cookies, never in browser storage.
-                </p>
+                <p className="eyebrow">What&apos;s next</p>
+                <h2>Upcoming on campus</h2>
+                <p>Workshops, demos, meetups and the occasional free pizza.</p>
               </div>
-              <div className="stack">
-                <Link className="btn" href="/dashboard/projects/new" style={{ background: "#fffdf8", color: "#17392a" }}>
-                  Propose a project
-                </Link>
-                <Link className="btn" href="/dashboard/events/new" style={{ background: "#e7c79a", color: "#3b2a10" }}>
-                  Propose an event
-                </Link>
-                <Link className="btn" href="/about" style={{ background: "transparent", color: "#fffdf8", borderColor: "#6a8a77" }}>
-                  Read the honest status page
-                </Link>
+              <Link className="btn btn-secondary btn-sm" href="/events">
+                All events
+              </Link>
+            </div>
+            <Suspense fallback={<EventRowsSkeleton count={4} />}>
+              <UpcomingEvents />
+            </Suspense>
+          </div>
+        </section>
+
+        <section className="section">
+          <div className="shell">
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Find your people</p>
+                <h2>Clubs with open doors</h2>
+                <p>Open clubs let you join instantly. Others review a short request.</p>
+              </div>
+              <Link className="btn btn-secondary btn-sm" href="/clubs">
+                All clubs
+              </Link>
+            </div>
+            <Suspense fallback={<ClubCardsSkeleton count={3} />}>
+              <OpenClubs />
+            </Suspense>
+          </div>
+        </section>
+
+        <section className="section">
+          <div className="shell">
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Build something</p>
+                <h2>Projects looking for hands</h2>
+                <p>Every project is reviewed before it appears publicly.</p>
+              </div>
+              <Link className="btn btn-secondary btn-sm" href="/projects">
+                All projects
+              </Link>
+            </div>
+            <Suspense fallback={<ProjectCardsSkeleton count={3} />}>
+              <OpenProjects />
+            </Suspense>
+          </div>
+        </section>
+
+        <section className="section">
+          <div className="shell">
+            <div className="panel" style={{ background: "#24503c", color: "#fffdf8", borderColor: "#17392a" }}>
+              <div className="split">
+                <div>
+                  <p className="eyebrow" style={{ color: "#e7c79a" }}>
+                    How it works
+                  </p>
+                  <h2 style={{ color: "#fffdf8", fontSize: "clamp(1.6rem, 4vw, 2.2rem)" }}>
+                    Browse as a guest. Sign in only when it counts.
+                  </h2>
+                  <p style={{ color: "#d9e3d9", maxWidth: "60ch" }}>
+                    Reading club pages, event details and project descriptions never requires an account.
+                    Google sign-in is used for applications, registrations, posts and roles — and sessions
+                    live in secure, HttpOnly cookies, never in browser storage.
+                  </p>
+                </div>
+                <div className="stack">
+                  <Link className="btn" href="/dashboard/projects/new" style={{ background: "#fffdf8", color: "#17392a" }}>
+                    Propose a project
+                  </Link>
+                  <Link className="btn" href="/dashboard/events/new" style={{ background: "#e7c79a", color: "#3b2a10" }}>
+                    Propose an event
+                  </Link>
+                  <Link className="btn" href="/about" style={{ background: "transparent", color: "#fffdf8", borderColor: "#6a8a77" }}>
+                    Read the honest status page
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </>
   );
 }

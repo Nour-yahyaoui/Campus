@@ -177,9 +177,13 @@ is not part of CI (CI has no browser).
 
 ## Backdrop
 
-Every page sits on a fixed, decorative layer (`components/SiteBackdrop.tsx`): a
-slow orb of light strands and dust drawn with WebGL (`ogl`), over two CSS
-radial washes in the site's own green and marigold.
+The landing page sits on a fixed, decorative layer
+(`components/SiteBackdrop.tsx`): a slow orb of light strands and dust drawn with
+WebGL (`ogl`), over two CSS radial washes in the site's own green and marigold.
+
+It belongs to the hero and nowhere else. Everything below the hero is wrapped
+in `.page-solid`, an opaque paper plate, so scrolling ends the effect exactly
+where reading begins; every other route renders no backdrop at all.
 
 - **It follows the theme.** The orb reads `<html data-theme>` first and the
   operating-system preference second — exactly the rule the stylesheet uses —
@@ -190,6 +194,9 @@ radial washes in the site's own green and marigold.
   own. The canvas is not mounted at all when `prefers-reduced-motion: reduce`,
   when the reader has Data Saver on, or on devices reporting ≤ 2 GB of memory,
   and a refused WebGL context is caught rather than thrown.
+- **It cannot follow the reader.** The layer is mounted only when the path is
+  `/`, and the sections after the hero carry an opaque background, so the orb
+  never sits behind a list, a table or a form.
 - **It cannot intercept anything.** The layer is `aria-hidden`, has
   `pointer-events: none`, and stays at `z-index: 0`; `main` and the footer are
   positioned later in the document, so content paints above it without turning
@@ -202,7 +209,8 @@ radial washes in the site's own green and marigold.
 - **Cost.** The engine is a lazily imported chunk, mounted ~700 ms after first
   paint. To remove the backdrop entirely, delete `<SiteBackdrop />` from
   `app/layout.tsx`; to keep the wash but never the canvas, add
-  `.site-backdrop__orb { display: none }`.
+  `.site-backdrop__orb { display: none }`; to stop it after the hero only, keep
+  `.page-solid` and drop the backdrop component.
 
 ## Server health panel
 

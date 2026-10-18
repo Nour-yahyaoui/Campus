@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ORB_COLOUR,
@@ -28,7 +29,18 @@ import {
 
 const CrystalizedBall = dynamic(() => import("@/components/CrystalizedBall"), { ssr: false });
 
+/**
+ * The orb belongs to the landing hero and nowhere else. Other pages get a flat
+ * paper background — a moving shape behind a table of events is not decoration,
+ * it is interference.
+ */
 export function SiteBackdrop() {
+  const pathname = usePathname();
+  if (pathname !== "/") return null;
+  return <LandingBackdrop />;
+}
+
+function LandingBackdrop() {
   const [theme, setTheme] = useState<OrbTheme | null>(null);
   const [viewport, setViewport] = useState<OrbViewport>("desktop");
   const [allowed, setAllowed] = useState(false);
