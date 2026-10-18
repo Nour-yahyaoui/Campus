@@ -6,19 +6,18 @@
 ## cargo build -p campussphere-api --message-format short
 `exit=0`
 ```
-[1m[92m  Downloaded[0m thiserror-impl v2.0.21
 [1m[92m  Downloaded[0m thiserror v1.0.69
-[1m[92m  Downloaded[0m thiserror-impl v1.0.69
 [1m[92m  Downloaded[0m thiserror v2.0.21
+[1m[92m  Downloaded[0m thiserror-impl v1.0.69
+[1m[92m  Downloaded[0m thiserror-impl v2.0.21
 [1m[92m   Compiling[0m thiserror v2.0.21
 [1m[92m   Compiling[0m thiserror-impl v2.0.21
 [1m[92m   Compiling[0m thiserror v1.0.69
 [1m[92m   Compiling[0m thiserror-impl v1.0.69
 ```
 ## cargo clippy --message-format short
-`exit=101`
+`exit=0`
 ```
-apps/rust-api/src/main.rs:315:13: [1m[91merror[0m: this can be `std::io::Error::other(_)`
 ```
 ## cargo test
 `exit=0`
