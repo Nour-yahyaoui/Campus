@@ -93,10 +93,9 @@ pub struct ClubListQuery<'a> {
 /// wildcard) behave differently between the Rust and Next.js APIs for the same
 /// search string.
 fn like_pattern(value: &str) -> String {
-    let escaped = value
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_");
+    let mut escaped = value.replace('\\', "\\\\");
+    escaped = escaped.replace('%', "\\%");
+    escaped = escaped.replace('_', "\\_");
     format!("%{}%", escaped)
 }
 
@@ -104,7 +103,7 @@ pub async fn list_clubs(pool: &PgPool, query: ClubListQuery<'_>) -> StoreResult<
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| like_pattern(value));
+        .map(like_pattern);
     let rows = sqlx::query(
         r#"
         select c.id, c.slug, c.name, c.tagline, c.category::text as category,
@@ -147,7 +146,7 @@ pub async fn list_events(pool: &PgPool, query: EventListQuery<'_>) -> StoreResul
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| like_pattern(value));
+        .map(like_pattern);
     let rows = sqlx::query(
         r#"
         select e.id, e.slug, e.title, e.summary, e.category::text as category, e.status::text as status,
@@ -192,7 +191,7 @@ pub async fn list_projects(pool: &PgPool, query: ProjectListQuery<'_>) -> StoreR
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| like_pattern(value));
+        .map(like_pattern);
     let rows = sqlx::query(
         r#"
         select p.id, p.slug, p.title, p.summary, p.category::text as category, p.status::text as status,

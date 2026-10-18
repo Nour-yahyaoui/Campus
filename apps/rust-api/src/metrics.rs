@@ -155,7 +155,8 @@ fn authorised_with(expected: Option<&str>, presented: Option<&str>) -> bool {
     match presented.map(str::trim) {
         // Hashes both sides and compares them in constant time.
         Some(token) => {
-            campussphere_security::verify_token(token, &campussphere_security::hash_token(expected))
+            let hash = campussphere_security::hash_token(expected);
+            campussphere_security::verify_token(token, &hash)
         }
         None => false,
     }
