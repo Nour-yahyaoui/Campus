@@ -43,22 +43,34 @@ const booleanish = z
   .optional()
   .transform((value) => value === "true" || value === "1");
 
+/**
+ * A dashboard field left blank arrives as `""`, which is not the same as unset:
+ * `"" ?? fallback` keeps the empty string, and an empty canonical host would
+ * put `https:///clubs` in every `<link rel="canonical">`. Blank means "not
+ * configured" everywhere in this file.
+ */
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
+const optionalString = z.preprocess(blankToUndefined, z.string().optional());
+const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optional());
+
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_ENV: z.string().default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
-  API_BASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SITE_URL: optionalUrl,
+  API_BASE_URL: optionalUrl,
 
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: optionalString,
+  GOOGLE_CLIENT_SECRET: optionalString,
   ALLOW_DEV_SIGN_IN: booleanish,
 
   EMAIL_TRANSPORT: z.enum(["console", "smtp", "resend"]).default("console"),
   EMAIL_FROM: z.string().default("CampusSphere <no-reply@campussphere.local>"),
-  SMTP_URL: z.string().optional(),
-  RESEND_API_KEY: z.string().optional(),
+  SMTP_URL: optionalString,
+  RESEND_API_KEY: optionalString,
 
   METRICS_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
   JOBS_POLL_INTERVAL_MS: z.coerce.number().int().min(200).max(60_000).default(2_000),
@@ -68,10 +80,7 @@ const schema = z.object({
   // Optional. When set, `/api/initialize` requires it; when unset, that route
   // may only set up a database that has no super-admin yet. An empty value in
   // .env means "not set", like every other optional string here.
-  SETUP_TOKEN: z.preprocess(
-    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
-    z.string().min(8).optional(),
-  ),
+  SETUP_TOKEN: z.preprocess(blankToUndefined, z.string().min(8).optional()),
 });
 
 export type Env = Omit<z.infer<typeof schema>, "NEXT_PUBLIC_SITE_URL"> & {
@@ -169,6 +178,8 @@ export function siteUrl(): string {
   try {
     return getEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
   } catch {
-    return (process.env.NEXT_PUBLIC_SITE_URL ?? derivedSiteUrl() ?? "http://localhost:3000").replace(/\/$/, "");
+    // Invalid configuration must not silently produce an empty canonical host.
+    const explicit = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
+    return (explicit || derivedSiteUrl() || "http://localhost:3000").replace(/\/$/, "");
   }
 }
