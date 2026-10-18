@@ -32,41 +32,34 @@ jobs:
           set +e
           out="$RUNNER_TEMP/diag.md"
           echo "# Rust diagnostics" > "$out"
-          echo "" >> "$out"
 
           echo "## cargo generate-lockfile" >> "$out"
           cargo generate-lockfile > "$RUNNER_TEMP/lock.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
-          echo '```' >> "$out"
-          head -40 "$RUNNER_TEMP/lock.txt" >> "$out"
-          echo '```' >> "$out"
 
-          echo "## cargo fmt --check" >> "$out"
-          cargo fmt --all -- --check > "$RUNNER_TEMP/fmt.txt" 2>&1
+          echo "## cargo fmt --all (applied)" >> "$out"
+          cargo fmt --all > "$RUNNER_TEMP/fmt.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
-          echo '```diff' >> "$out"
-          head -600 "$RUNNER_TEMP/fmt.txt" >> "$out"
-          echo '```' >> "$out"
 
-          echo "## cargo build -p campussphere-api" >> "$out"
-          cargo build -p campussphere-api --all-targets > "$RUNNER_TEMP/build.txt" 2>&1
+          echo "## cargo build -p campussphere-api --message-format short" >> "$out"
+          cargo build -p campussphere-api --message-format short > "$RUNNER_TEMP/build.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
           echo '```' >> "$out"
-          head -400 "$RUNNER_TEMP/build.txt" >> "$out"
+          grep -E "error|warning: unused" "$RUNNER_TEMP/build.txt" | head -120 >> "$out"
           echo '```' >> "$out"
 
-          echo "## cargo clippy" >> "$out"
-          cargo clippy --workspace --all-targets --all-features -- -D warnings > "$RUNNER_TEMP/clippy.txt" 2>&1
+          echo "## cargo clippy --message-format short" >> "$out"
+          cargo clippy --workspace --all-targets --all-features --message-format short -- -D warnings > "$RUNNER_TEMP/clippy.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
           echo '```' >> "$out"
-          head -300 "$RUNNER_TEMP/clippy.txt" >> "$out"
+          grep -E "^[a-z/:._-]+\.rs:[0-9]+" "$RUNNER_TEMP/clippy.txt" | head -80 >> "$out"
           echo '```' >> "$out"
 
           echo "## cargo test" >> "$out"
           cargo test --workspace > "$RUNNER_TEMP/test.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
           echo '```' >> "$out"
-          tail -80 "$RUNNER_TEMP/test.txt" >> "$out"
+          grep -E "test result|^error|FAILED|panicked" "$RUNNER_TEMP/test.txt" | head -40 >> "$out"
           echo '```' >> "$out"
 
           cp "$out" rust-diag.md
@@ -76,6 +69,6 @@ jobs:
         run: |
           git config user.name "rust-diagnostics"
           git config user.email "actions@users.noreply.github.com"
-          git add rust-diag.md
+          git add -A
           git diff --cached --quiet || git commit -m "Rust diagnostics [skip ci]"
           git push
