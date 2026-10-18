@@ -162,31 +162,6 @@ fn authorised_with(expected: Option<&str>, presented: Option<&str>) -> bool {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::authorised_with;
-
-    #[test]
-    fn fails_closed_without_a_configured_token() {
-        assert!(!authorised_with(None, Some("anything")));
-        assert!(!authorised_with(Some(""), Some("")));
-        assert!(!authorised_with(Some("   "), Some("   ")));
-    }
-
-    #[test]
-    fn rejects_a_wrong_or_missing_token() {
-        assert!(!authorised_with(Some("right"), Some("wrong")));
-        assert!(!authorised_with(Some("right"), None));
-        assert!(!authorised_with(Some("right"), Some("")));
-    }
-
-    #[test]
-    fn accepts_the_configured_token() {
-        assert!(authorised_with(Some("right"), Some("right")));
-        assert!(authorised_with(Some(" right "), Some("right")));
-    }
-}
-
 /// Builds the document served at `/health/metrics`. `database` is assembled by
 /// the caller because only it can run an async query.
 pub fn snapshot(uptime_seconds: u64, database: Value) -> Value {
@@ -220,4 +195,29 @@ pub fn snapshot(uptime_seconds: u64, database: Value) -> Value {
         },
         "database": database,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::authorised_with;
+
+    #[test]
+    fn fails_closed_without_a_configured_token() {
+        assert!(!authorised_with(None, Some("anything")));
+        assert!(!authorised_with(Some(""), Some("")));
+        assert!(!authorised_with(Some("   "), Some("   ")));
+    }
+
+    #[test]
+    fn rejects_a_wrong_or_missing_token() {
+        assert!(!authorised_with(Some("right"), Some("wrong")));
+        assert!(!authorised_with(Some("right"), None));
+        assert!(!authorised_with(Some("right"), Some("")));
+    }
+
+    #[test]
+    fn accepts_the_configured_token() {
+        assert!(authorised_with(Some("right"), Some("right")));
+        assert!(authorised_with(Some(" right "), Some("right")));
+    }
 }
