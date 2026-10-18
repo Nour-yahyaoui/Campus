@@ -15,8 +15,8 @@ unproven.
 | 3 | Integration tests on real PostgreSQL | ✅ 96/96 | `npm test` (16 files) |
 | 4 | Migrations apply with checksum verification | ✅ 7/7 | `npm run db:migrate`, `db:status` |
 | 5 | Schema invariants | ✅ | `npm run db:verify` |
-| 6 | Rust fmt + Clippy + tests + release build | ⛔ **open** | no toolchain/crates.io here; CI job is defined but has never run |
-| 7 | `Cargo.lock` committed | ⛔ **open** | must run `cargo generate-lockfile` with network access |
+| 6 | Rust fmt + Clippy + tests + release build | ✅ verified | CI run 39139878451 (2026-10-18): `cargo fmt --check`, `cargo clippy --locked -D warnings`, `cargo test --workspace`, `cargo build --release` all pass |
+| 7 | `Cargo.lock` committed | ✅ | committed; every Rust job and the Docker image build with `--locked` |
 | 8 | Lint (ESLint) | ⛔ **open** | no ESLint config ships; add `eslint-config-next` and a `lint` script |
 | 9 | Browser end-to-end (Playwright) | ⛔ **open** | smoke matrix is manual (`docs/TESTING.md`) |
 | 10 | Accessibility audit (automated + AT) | ⛔ **open** | manual review only; run axe and one screen reader pass |

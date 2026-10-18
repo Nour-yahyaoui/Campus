@@ -21,7 +21,7 @@ verified in this workspace are labelled ✅; the rest is procedure.
 | PostgreSQL (Neon) | Postgres 16/17 | yes | everything persists here |
 | `campussphere-fallback-api` | Next.js route handlers | strongly recommended | read-only JSON API used as a failover and by external readers |
 | `campussphere-worker` | Node + `tsx` | for email/reminders/cleanup | durable jobs; the web app only enqueues them |
-| `campussphere-rust-api` | Rust + Actix | optional for now | primary API, but it has never been compiled (see the launch checklist). Skip until CI is green. |
+| `campussphere-rust-api` | Rust + Actix | optional | read-only JSON API (`/api/v1/...`). CI builds, formats, lints and tests it, and builds the image on every push. The Next.js app does not call it; deploy it only if you want the Rust service. |
 
 **Simplest setup:** one Render web service plus Neon — see
 [`DEPLOY_QUICK.md`](DEPLOY_QUICK.md). Three environment variables, and

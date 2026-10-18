@@ -81,9 +81,9 @@ services:
         sync: false
 
   # --------------------------------------------------------- primary Rust API
-  # Optional until the Rust job in CI has compiled and tested it. The fallback
-  # below serves reads in the meantime. Delete this block if you are not
-  # deploying it yet.
+  # Optional read-only JSON API. CI compiles, lints, tests it and builds this
+  # image on every push. Docker Context must stay "." (the repository root):
+  # the crate depends on the workspace crates outside apps/rust-api.
   - type: web
     name: campussphere-rust-api
     runtime: docker
