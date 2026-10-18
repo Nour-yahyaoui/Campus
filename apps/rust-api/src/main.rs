@@ -312,7 +312,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .map_err(|error| {
             eprintln!("Could not connect to PostgreSQL: {error}");
-            std::io::Error::new(std::io::ErrorKind::Other, "database unavailable")
+            std::io::Error::other("database unavailable")
         })?;
 
     let state = web::Data::new(AppState {
