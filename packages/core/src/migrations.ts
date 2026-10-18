@@ -73,24 +73,37 @@ export async function migrationsDirectory(): Promise<string> {
  * database created either way looks the same to the CLI.
  */
 export async function migrationFiles(): Promise<MigrationSource> {
+  const embedded = (): MigrationSource => ({
+    directory: null,
+    embedded: true,
+    files: EMBEDDED_MIGRATIONS.map((migration) => ({ ...migration })),
+  });
+
+  // A Vercel function bundle contains only the compiled app, never the
+  // repository, so the compiled-in copy is the only source that exists there.
+  // Skipping the disk also keeps Turbopack from tracing the whole project into
+  // the function.
+  if (process.env.VERCEL && EMBEDDED_MIGRATIONS.length > 0) return embedded();
+
   try {
     const directory = await migrationsDirectory();
-    const names = (await fs.readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+    const names = (await fs.readdir(/*turbopackIgnore: true*/ directory))
+      .filter((name) => name.endsWith(".sql"))
+      .sort();
     if (names.length === 0) throw new Error(`No .sql migrations in ${directory}`);
     const files = await Promise.all(
       names.map(async (name) => {
-        const sql = await fs.readFile(path.join(directory, name), "utf8");
+        // The path is only known at runtime; tracing it would pull the entire
+        // repository into every function that imports this module.
+        const file = path.join(/*turbopackIgnore: true*/ directory, name);
+        const sql = await fs.readFile(/*turbopackIgnore: true*/ file, "utf8");
         return { name, sql, checksum: checksum(sql) };
       }),
     );
     return { directory, embedded: false, files };
   } catch (error) {
     if (EMBEDDED_MIGRATIONS.length === 0) throw error;
-    return {
-      directory: null,
-      embedded: true,
-      files: EMBEDDED_MIGRATIONS.map((migration) => ({ ...migration })),
-    };
+    return embedded();
   }
 }
 

@@ -146,8 +146,10 @@ export function localStorageRoot(): string {
 async function localPath(key: string): Promise<string> {
   if (!isValidObjectKey(key)) throw new Error("Invalid object key");
   const root = localStorageRoot();
-  const full = path.resolve(root, key);
-  if (!full.startsWith(path.resolve(root) + path.sep)) throw new Error("Invalid object key");
+  const full = path.resolve(/*turbopackIgnore: true*/ root, key);
+  if (!full.startsWith(path.resolve(/*turbopackIgnore: true*/ root) + path.sep)) {
+    throw new Error("Invalid object key");
+  }
   return full;
 }
 
@@ -160,7 +162,7 @@ export async function putLocalObject(key: string, bytes: Uint8Array): Promise<vo
 export async function readLocalObject(key: string): Promise<Uint8Array | null> {
   try {
     const full = await localPath(key);
-    const buffer = await fs.readFile(full);
+    const buffer = await fs.readFile(/*turbopackIgnore: true*/ full);
     return new Uint8Array(buffer);
   } catch {
     return null;
@@ -210,7 +212,7 @@ export async function statObject(key: string): Promise<{ size: number; contentTy
   if (storageDriver() === "local") {
     try {
       const full = await localPath(key);
-      const stat = await fs.stat(full);
+      const stat = await fs.stat(/*turbopackIgnore: true*/ full);
       return { size: stat.size, contentType: null };
     } catch {
       return null;
@@ -230,7 +232,7 @@ export async function readObjectHead(key: string, bytes = 64): Promise<Uint8Arra
   if (storageDriver() === "local") {
     try {
       const full = await localPath(key);
-      const handle = await fs.open(full, "r");
+      const handle = await fs.open(/*turbopackIgnore: true*/ full, "r");
       try {
         const buffer = Buffer.alloc(length);
         const { bytesRead } = await handle.read(buffer, 0, length, 0);
