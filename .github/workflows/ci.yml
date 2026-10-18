@@ -139,26 +139,37 @@ jobs:
           PORT: "8099"
           RUST_LOG: info
         run: |
+          # Do not let `bash -e` abort on the first failed curl: the point of
+          # this step is to report every endpoint, not just the first bad one.
+          set +e
           ./target/debug/campussphere-api > /tmp/api.log 2>&1 &
+          api_pid=$!
+
           status=0
-          # Print every response rather than aborting on the first one, so a
-          # failure says which endpoint broke and what it returned.
+          for attempt in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8099/health/live; then break; fi
+            sleep 1
+          done
+
           for path in /health/live /health/ready /api/v1/clubs /api/v1/events /api/v1/projects "/api/v1/search?q=robotics"; do
-            code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" || true)
-            echo "--- $path -> $code"
-            head -c 300 /tmp/body.json; echo
+            : > /tmp/body.json
+            code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" 2>/dev/null)
+            echo "--- $path -> ${code:-none}"
+            head -c 300 /tmp/body.json 2>/dev/null || true
+            echo
             case "$code" in
               2*) ;;
-              *) status=1; echo "::error title=$path returned $code::$(head -c 400 /tmp/body.json | tr '\n' ' ')" ;;
+              *) status=1; echo "::error title=$path returned ${code:-none}::$(head -c 300 /tmp/body.json 2>/dev/null | tr '\n' ' ')" ;;
             esac
           done
+
           if [ "$status" -ne 0 ]; then
-            echo "=== API log ==="; tail -60 /tmp/api.log
-            # Annotations are readable through the checks API, which is the only
-            # log channel available to some tooling.
-            echo "::error title=API log::$(tail -6 /tmp/api.log | tr '\n' ' ' | cut -c1-600)"
+            echo "=== API log ==="
+            tail -40 /tmp/api.log || true
+            echo "::error title=API log::$(tail -8 /tmp/api.log 2>/dev/null | tr '\n' ' ' | cut -c1-700)"
           fi
-          kill %1 2>/dev/null || true
+
+          kill "$api_pid" 2>/dev/null || true
           exit "$status"
 
   rust-image:
