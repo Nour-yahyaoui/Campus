@@ -38,7 +38,14 @@ pub fn decide_registration(
     waitlist_enabled: bool,
     existing: Option<RegistrationState>,
 ) -> Result<RegistrationOutcome, CapacityError> {
-    if matches!(existing, Some(RegistrationState::Registered | RegistrationState::Attended | RegistrationState::Waitlisted)) {
+    if matches!(
+        existing,
+        Some(
+            RegistrationState::Registered
+                | RegistrationState::Attended
+                | RegistrationState::Waitlisted
+        )
+    ) {
         return Err(CapacityError::AlreadyRegistered);
     }
     match capacity {
@@ -89,7 +96,11 @@ impl ClubRole {
 }
 
 /// Feedback opens when the event has ended and stays open for a fortnight.
-pub fn feedback_window(starts_at: DateTime<Utc>, ends_at: DateTime<Utc>, now: DateTime<Utc>) -> Result<(), &'static str> {
+pub fn feedback_window(
+    starts_at: DateTime<Utc>,
+    ends_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> Result<(), &'static str> {
     if starts_at > ends_at {
         return Err("This event's start time is after its end time.");
     }
@@ -119,7 +130,12 @@ pub fn slugify(input: &str) -> String {
     if trimmed.is_empty() {
         "item".to_string()
     } else {
-        trimmed.chars().take(80).collect::<String>().trim_end_matches('-').to_string()
+        trimmed
+            .chars()
+            .take(80)
+            .collect::<String>()
+            .trim_end_matches('-')
+            .to_string()
     }
 }
 
@@ -144,13 +160,22 @@ mod tests {
 
     #[test]
     fn capacity_is_never_overbooked() {
-        assert_eq!(decide_registration(Some(3), 2, false, None), Ok(RegistrationOutcome::Registered));
-        assert_eq!(decide_registration(Some(3), 3, true, None), Ok(RegistrationOutcome::Waitlisted));
+        assert_eq!(
+            decide_registration(Some(3), 2, false, None),
+            Ok(RegistrationOutcome::Registered)
+        );
+        assert_eq!(
+            decide_registration(Some(3), 3, true, None),
+            Ok(RegistrationOutcome::Waitlisted)
+        );
         assert_eq!(
             decide_registration(Some(3), 3, false, None),
             Err(CapacityError::CapacityExhausted)
         );
-        assert_eq!(decide_registration(None, 9_999, false, None), Ok(RegistrationOutcome::Registered));
+        assert_eq!(
+            decide_registration(None, 9_999, false, None),
+            Ok(RegistrationOutcome::Registered)
+        );
     }
 
     #[test]
@@ -181,7 +206,10 @@ mod tests {
 
     #[test]
     fn slugs_are_stable_and_readable() {
-        assert_eq!(slugify("Solar charging bench for the courtyard!"), "solar-charging-bench-for-the-courtyard");
+        assert_eq!(
+            slugify("Solar charging bench for the courtyard!"),
+            "solar-charging-bench-for-the-courtyard"
+        );
         assert_eq!(slugify("  Café — Société  "), "caf-soci-t");
         assert_eq!(slugify("***"), "item");
         assert_eq!(slugify("A".repeat(200).as_str()).len(), 80);

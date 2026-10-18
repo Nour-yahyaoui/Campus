@@ -14,7 +14,11 @@ pub fn init(service: &str) {
         .unwrap_or_else(|_| EnvFilter::new("info,campussphere=debug,actix_web=info"));
     tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer().json().with_current_span(true))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .with_current_span(true),
+        )
         .init();
     tracing::info!(service, "telemetry initialised");
 }

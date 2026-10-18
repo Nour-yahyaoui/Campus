@@ -23,11 +23,19 @@ impl ApiError {
     }
 
     pub fn bad_request(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::BAD_REQUEST, ApiErrorCode::InvalidRequest, message)
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            ApiErrorCode::InvalidRequest,
+            message,
+        )
     }
 
     pub fn unauthorized(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::UNAUTHORIZED, ApiErrorCode::Unauthorized, message)
+        Self::new(
+            StatusCode::UNAUTHORIZED,
+            ApiErrorCode::Unauthorized,
+            message,
+        )
     }
 
     pub fn not_found(message: impl Into<String>) -> Self {
@@ -35,7 +43,11 @@ impl ApiError {
     }
 
     pub fn rate_limited(message: impl Into<String>) -> Self {
-        Self::new(StatusCode::TOO_MANY_REQUESTS, ApiErrorCode::RateLimited, message)
+        Self::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            ApiErrorCode::RateLimited,
+            message,
+        )
     }
 
     pub fn unavailable(message: impl Into<String>) -> Self {

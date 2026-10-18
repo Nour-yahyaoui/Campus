@@ -11,8 +11,10 @@
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use campussphere_application::{list_clubs, list_events, list_projects, search, session_user, ApiError, AppState, ListParams};
-use campussphere_shared_types::{ApiErrorCode, ApiErrorDetail, ApiErrorBody, HealthBody};
+use campussphere_application::{
+    list_clubs, list_events, list_projects, search, session_user, ApiError, AppState, ListParams,
+};
+use campussphere_shared_types::{ApiErrorBody, ApiErrorCode, ApiErrorDetail, HealthBody};
 use campussphere_telemetry::RequestTimer;
 use serde::Deserialize;
 use std::time::Instant;
@@ -35,7 +37,9 @@ async fn guard_rate(state: &AppState, request: &HttpRequest, route: &str) -> Res
     if allowed {
         Ok(())
     } else {
-        Err(ApiError::rate_limited("Too many requests. Try again shortly."))
+        Err(ApiError::rate_limited(
+            "Too many requests. Try again shortly.",
+        ))
     }
 }
 
@@ -189,8 +193,10 @@ async fn search_handler(
     let term = query.q.clone().unwrap_or_default();
     let kind = query.kind.clone().unwrap_or_else(|| "all".into());
     if !matches!(kind.as_str(), "all" | "clubs" | "projects" | "events") {
-        return Err(ApiError::bad_request("type must be one of all, clubs, projects, events")
-            .with_correlation(&correlation));
+        return Err(
+            ApiError::bad_request("type must be one of all, clubs, projects, events")
+                .with_correlation(&correlation),
+        );
     }
     let results = search(&state, &term, &kind)
         .await
@@ -231,12 +237,15 @@ fn session_token(request: &HttpRequest) -> Option<String> {
 
 async fn me(request: HttpRequest, state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
     let correlation = correlation_id(&request);
-    let token = session_token(&request)
-        .ok_or_else(|| ApiError::unauthorized("Sign in to continue").with_correlation(&correlation))?;
+    let token = session_token(&request).ok_or_else(|| {
+        ApiError::unauthorized("Sign in to continue").with_correlation(&correlation)
+    })?;
     let user = session_user(&state, &token)
         .await
         .map_err(|error| error.with_correlation(&correlation))?
-        .ok_or_else(|| ApiError::unauthorized("This session has expired").with_correlation(&correlation))?;
+        .ok_or_else(|| {
+            ApiError::unauthorized("This session has expired").with_correlation(&correlation)
+        })?;
     Ok(with_headers(
         HttpResponse::Ok().json(serde_json::json!({ "data": user })),
         &correlation,
@@ -309,7 +318,9 @@ async fn main() -> std::io::Result<()> {
     let state = web::Data::new(AppState {
         pool: pool.clone(),
         site_url: site_url.clone(),
-        secure_cookies: std::env::var("NODE_ENV").map(|value| value == "production").unwrap_or(false),
+        secure_cookies: std::env::var("NODE_ENV")
+            .map(|value| value == "production")
+            .unwrap_or(false),
     });
 
     tracing::info!(port, "starting campussphere-api on 0.0.0.0");

@@ -96,7 +96,10 @@ fn event_category_from(value: &str) -> EventCategory {
     }
 }
 
-pub async fn list_clubs(state: &AppState, params: &ListParams) -> Result<Paginated<ClubSummary>, ApiError> {
+pub async fn list_clubs(
+    state: &AppState,
+    params: &ListParams,
+) -> Result<Paginated<ClubSummary>, ApiError> {
     let limit = limit_or_default(params.limit);
     let rows = campussphere_infrastructure::list_clubs(
         &state.pool,
@@ -136,7 +139,10 @@ pub async fn list_clubs(state: &AppState, params: &ListParams) -> Result<Paginat
     Ok(Paginated { items, next_cursor })
 }
 
-pub async fn list_events(state: &AppState, params: &ListParams) -> Result<Paginated<EventSummary>, ApiError> {
+pub async fn list_events(
+    state: &AppState,
+    params: &ListParams,
+) -> Result<Paginated<EventSummary>, ApiError> {
     use sqlx::Row;
     let limit = limit_or_default(params.limit);
     let when = params.when.as_deref().unwrap_or("upcoming");
@@ -174,7 +180,8 @@ pub async fn list_events(state: &AppState, params: &ListParams) -> Result<Pagina
             ends_at: row.get("ends_at"),
             timezone: row.get("timezone"),
             venue_name: row.get("venue_name"),
-            is_online: row.get::<Option<String>, _>("online_url").is_some() && row.get::<Option<String>, _>("venue_name").is_none(),
+            is_online: row.get::<Option<String>, _>("online_url").is_some()
+                && row.get::<Option<String>, _>("venue_name").is_none(),
             capacity: row.get("capacity"),
             registered_count: row.get("registered_count"),
             waitlist_count: row.get("waitlist_count"),
@@ -191,7 +198,10 @@ pub async fn list_events(state: &AppState, params: &ListParams) -> Result<Pagina
     Ok(Paginated { items, next_cursor })
 }
 
-pub async fn list_projects(state: &AppState, params: &ListParams) -> Result<Paginated<ProjectSummary>, ApiError> {
+pub async fn list_projects(
+    state: &AppState,
+    params: &ListParams,
+) -> Result<Paginated<ProjectSummary>, ApiError> {
     use sqlx::Row;
     let limit = limit_or_default(params.limit);
     let rows = campussphere_infrastructure::list_projects(
@@ -301,7 +311,10 @@ pub async fn search(state: &AppState, query: &str, kind: &str) -> Result<SearchR
 
 /// Session tokens arrive as `Authorization: Bearer …` (server-to-server) or as
 /// the HttpOnly cookie (browser). Only the hash is compared in the database.
-pub async fn session_user(state: &AppState, raw_token: &str) -> Result<Option<SessionUser>, ApiError> {
+pub async fn session_user(
+    state: &AppState,
+    raw_token: &str,
+) -> Result<Option<SessionUser>, ApiError> {
     if raw_token.len() < 20 || raw_token.len() > 200 {
         return Ok(None);
     }
