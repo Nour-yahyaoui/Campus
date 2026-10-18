@@ -143,6 +143,43 @@ The System Observatory shows these live but does not page anyone. Alerts belong
 to the hosting provider's monitoring; this repository does not pretend to ship a
 paging system.
 
+## Server health panel
+
+**Admin → Overview** shows two live nodes side by side: the Next.js deployment
+answering the request, and the optional Actix primary API. It refreshes every
+ten seconds while the tab is visible, pauses when it is hidden, and keeps the
+last good reading on screen (clearly labelled as stale) if a check fails.
+
+| Node | How it is measured |
+| --- | --- |
+| **Next.js (fallback)** | In-process: `process.memoryUsage()`, CPU time delta, event-loop delay (`perf_hooks`), pg pool state, `os.loadavg()` |
+| **Actix (primary)** | `GET $API_BASE_URL/health/metrics`, which reads `/proc/self/status`, `/proc/self/stat`, `/proc/loadavg` and the cgroup memory limit |
+
+The verdict (*idle / light / busy / under load*) is computed from CPU, event-loop
+delay, pool waiters and the API's p95 latency over the last five minutes. Every
+verdict names the signal that produced it.
+
+Truthfulness rules the panel follows:
+
+- A missing measurement is `null` and renders as `—`. It is never shown as zero.
+- Memory percentages use the platform's own limit (`process.constrainedMemory()`
+  on Vercel, the cgroup limit on Docker). Without a limit, only the absolute
+  figure is shown.
+- `os.loadavg()` and `/proc/loadavg` describe the **host**, not the container,
+  on shared platforms. CPU and RSS are the process's own.
+- On Vercel each function instance reports its own memory. The figure is the
+  instance that answered the request, not a fleet total.
+
+The primary is only probed when `API_BASE_URL` is set. If it is, set the same
+`METRICS_TOKEN` on both services so the detailed endpoint is not publicly
+readable; the probe sends `Authorization: Bearer …`. The endpoint returns `401`
+otherwise, which the panel reports verbatim instead of pretending the service is
+down.
+
+Nothing here stores history. The sparkline is the browser's own last 24 samples;
+the package's durable history remains the `api_metrics` table and the provider's
+dashboards.
+
 ## Credential rotation
 
 | Secret | Procedure |

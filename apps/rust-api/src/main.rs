@@ -6,7 +6,9 @@
 //! and are explicitly refused with 503 rather than silently accepted.
 //!
 //! Build/run: `cargo run -p campussphere-api` with DATABASE_URL set.
-//! Health: GET /health/live, GET /health/ready.
+//! Health: GET /health/live, GET /health/ready, GET /health/metrics.
+
+mod metrics;
 
 use actix_cors::Cors;
 use actix_web::http::header;
@@ -100,6 +102,40 @@ async fn live() -> impl Responder {
         version: VERSION.into(),
         uptime_seconds: started.elapsed().as_secs(),
     })
+}
+
+/// Process and host resources for the operations dashboard. Set
+/// `METRICS_TOKEN` on both services to keep this off the public internet.
+async fn health_metrics(state: web::Data<AppState>, request: HttpRequest) -> HttpResponse {
+    if !metrics::authorised(&request) {
+        return HttpResponse::Unauthorized().json(serde_json::json!({
+            "error": {
+                "code": "unauthorized",
+                "message": "This endpoint requires Authorization: Bearer <METRICS_TOKEN>."
+            }
+        }));
+    }
+
+    let started = STARTED.get_or_init(Instant::now);
+    let database_started = Instant::now();
+    let ready = campussphere_infrastructure::ping(&state.pool).await;
+    let latency_ms = database_started.elapsed().as_millis();
+    let migrations = if ready {
+        campussphere_infrastructure::migrations_applied(&state.pool)
+            .await
+            .ok()
+    } else {
+        None
+    };
+
+    HttpResponse::Ok().json(metrics::snapshot(
+        started.elapsed().as_secs(),
+        serde_json::json!({
+            "ready": ready,
+            "migrations": migrations,
+            "latencyMs": latency_ms,
+        }),
+    ))
 }
 
 async fn ready(state: web::Data<AppState>) -> HttpResponse {
@@ -261,6 +297,7 @@ async fn index() -> impl Responder {
         "endpoints": [
             "GET /health/live",
             "GET /health/ready",
+            "GET /health/metrics",
             "GET /api/v1/clubs",
             "GET /api/v1/projects",
             "GET /api/v1/events",
@@ -356,6 +393,7 @@ async fn main() -> std::io::Result<()> {
             )
             .route("/health/live", web::get().to(live))
             .route("/health/ready", web::get().to(ready))
+            .route("/health/metrics", web::get().to(health_metrics))
             .route("/", web::get().to(index))
             .default_service(web::to(unsupported))
     })

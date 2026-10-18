@@ -7,6 +7,7 @@ import { EmptyState, Notice, Tag } from "@/components/Pieces";
 import { decideProjectAction } from "@/app/actions/projects";
 import { decideEventAction } from "@/app/actions/events";
 import { SubmitButton } from "@/components/SubmitButton";
+import { SystemPanel } from "@/components/SystemPanel";
 
 export const metadata: Metadata = { title: "Admin overview", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -31,6 +32,10 @@ export default async function AdminPage({
         <div className="mini-stat"><b>{overview.clubs}</b><span>Active clubs</span></div>
         <div className="mini-stat"><b>{overview.pendingProjects + overview.pendingEvents + overview.pendingClubApplications}</b><span>Items awaiting review</span></div>
         <div className="mini-stat"><b>{overview.openReports}</b><span>Open reports</span></div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <SystemPanel />
       </div>
 
       <div className="card">

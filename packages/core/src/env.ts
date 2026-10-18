@@ -54,6 +54,7 @@ const blankToUndefined = (value: unknown) =>
 
 const optionalString = z.preprocess(blankToUndefined, z.string().optional());
 const optionalUrl = z.preprocess(blankToUndefined, z.string().url().optional());
+const optionalInteger = z.preprocess(blankToUndefined, z.coerce.number().int().optional());
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -62,6 +63,14 @@ const schema = z.object({
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
   NEXT_PUBLIC_SITE_URL: optionalUrl,
   API_BASE_URL: optionalUrl,
+
+  // Operations dashboard. `API_BASE_URL` is the Actix service the dashboard
+  // probes; `METRICS_TOKEN` is optional and, when set on both services, keeps
+  // the detailed metrics endpoint from being readable by anyone else.
+  METRICS_TOKEN: optionalString,
+  // Only used when the platform does not report a memory limit itself (Vercel
+  // and Docker both do). It is a budget for the percentage, not a quota.
+  SERVER_MEMORY_LIMIT_MB: optionalInteger,
 
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,

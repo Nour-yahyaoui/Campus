@@ -311,7 +311,7 @@ The full blueprint is [`deployment/render-full.yaml`](../deployment/render-full.
 | `campussphere-web` | `DATABASE_URL` (pooled), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AWS_*` + `STORAGE_PUBLIC_BASE_URL` if used (Step 4b) |
 | `campussphere-fallback-api` | `DATABASE_URL` (pooled) |
 | `campussphere-worker` | `DATABASE_URL` (pooled), `AWS_*` (Step 4b) |
-| `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it |
+| `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it. Optionally `METRICS_TOKEN` (see below) |
 
 5. If you are **not** deploying the Rust API yet, delete its block from
    `render-full.yaml` before applying (or suspend the service afterwards). It is
@@ -330,6 +330,22 @@ What the blueprint already handles, and why:
 - Health checks on `/api/health/ready` (web) and `/health/ready` (fallback).
   The web check returns `503` and names the missing variable when the
   configuration is wrong, so a bad deploy fails instead of serving 500s.
+
+### Watching the Rust service from the admin dashboard
+
+Admin → Overview → **Servers** probes `GET <API_BASE_URL>/health/metrics` every
+ten seconds. Two optional variables wire it up:
+
+```bash
+# On the Next.js service
+API_BASE_URL=https://campussphere-rust-api.onrender.com
+# On both services, with the same value, to keep the numbers private
+METRICS_TOKEN=<long random string>
+```
+
+Without `API_BASE_URL` the panel honestly reports the primary as *not
+configured*; it never invents a second server. The endpoint returns `401` when
+a token is configured and the probe does not present it.
 
 **Checkpoint after the first build:**
 

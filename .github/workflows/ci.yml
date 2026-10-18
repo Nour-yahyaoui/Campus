@@ -151,7 +151,7 @@ jobs:
             sleep 1
           done
 
-          for path in /health/live /health/ready /api/v1/clubs /api/v1/events /api/v1/projects "/api/v1/search?q=robotics"; do
+          for path in /health/live /health/ready /health/metrics /api/v1/clubs /api/v1/events /api/v1/projects "/api/v1/search?q=robotics"; do
             : > /tmp/body.json
             code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" 2>/dev/null)
             echo "--- $path -> ${code:-none}"

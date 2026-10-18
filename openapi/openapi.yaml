@@ -87,6 +87,50 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/HealthBody" }
+  /health/metrics:
+    get:
+      tags: [Health]
+      summary: Process and host resources
+      description: |
+        Memory, CPU, load average and database status for the operations
+        dashboard. Fields the kernel does not expose are `null`, never zero.
+        Protected by `METRICS_TOKEN` when that variable is set.
+      security: []
+      responses:
+        "200":
+          description: Metrics for this instance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, status, uptimeSeconds, memory, cpu, database]
+                properties:
+                  service: { type: string, const: campussphere-rust-api }
+                  status: { type: string, const: ok }
+                  uptimeSeconds: { type: integer, minimum: 0 }
+                  memory:
+                    type: object
+                    properties:
+                      rssBytes: { type: integer, nullable: true }
+                      peakRssBytes: { type: integer, nullable: true }
+                      limitBytes: { type: integer, nullable: true }
+                  cpu:
+                    type: object
+                    properties:
+                      percent: { type: number, nullable: true }
+                      percentAverage: { type: number, nullable: true }
+                      cores: { type: integer, minimum: 1 }
+                      load1: { type: number, nullable: true }
+                      load5: { type: number, nullable: true }
+                      load15: { type: number, nullable: true }
+                  database:
+                    type: object
+                    properties:
+                      ready: { type: boolean }
+                      migrations: { type: integer, nullable: true }
+                      latencyMs: { type: integer, minimum: 0 }
+        "401":
+          description: METRICS_TOKEN is set and the bearer token did not match
   /clubs:
     get:
       tags: [Clubs]

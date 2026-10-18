@@ -1902,3 +1902,361 @@ li {
 .demo-track > span[data-done="true"] {
   opacity: 0;
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Server health (super-admin dashboard)                               */
+/* ------------------------------------------------------------------ */
+
+.srv-card {
+  padding: 18px 20px 16px;
+}
+
+.srv-card-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.srv-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.srv-verdict-tag {
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.srv-verdict strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.srv-verdict-online {
+  background: var(--forest-soft);
+  border-color: #c9d8cb;
+}
+
+.srv-verdict-degraded {
+  background: var(--marigold-soft);
+  border-color: #e7d0b4;
+}
+
+.srv-verdict-offline {
+  background: var(--danger-soft);
+  border-color: #e8c4bd;
+}
+
+.srv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.srv-node {
+  min-width: 0;
+  padding: 14px 15px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.srv-node-offline {
+  border-style: dashed;
+}
+
+.srv-node-not_configured {
+  background: transparent;
+  border-style: dashed;
+}
+
+.srv-node-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.srv-node-head h3 {
+  margin: 1px 0 0;
+  font-size: 1.05rem;
+}
+
+.srv-role {
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.srv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.srv-pill-online {
+  background: var(--forest-soft);
+  border-color: #c9d8cb;
+  color: var(--forest-dark);
+}
+
+.srv-pill-degraded {
+  background: var(--marigold-soft);
+  color: #7a4213;
+}
+
+.srv-pill-offline {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.srv-pill-not_configured {
+  background: var(--paper-raised);
+  border-color: var(--line);
+  color: var(--ink-muted);
+}
+
+.srv-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.srv-pill-online .srv-dot {
+  animation: srv-pulse 2.4s ease-in-out infinite;
+}
+
+.srv-node-detail {
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+
+.srv-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.srv-stat-label {
+  display: block;
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.srv-stat-value {
+  display: block;
+  font-size: 0.98rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.srv-stats .tiny {
+  display: block;
+  line-height: 1.3;
+}
+
+.srv-meter {
+  height: 6px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.srv-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--forest);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.srv-meter[data-tone="warn"] > span {
+  background: var(--marigold);
+}
+
+.srv-meter[data-tone="danger"] > span {
+  background: var(--danger);
+}
+
+.srv-history {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--forest);
+}
+
+.srv-spark {
+  flex: none;
+  width: 96px;
+  height: 26px;
+}
+
+.srv-load {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 12px;
+}
+
+.srv-load-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.srv-load-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.load-idle,
+.load-light {
+  background: var(--forest-soft);
+  color: var(--forest-dark);
+}
+
+.load-moderate {
+  background: var(--marigold-soft);
+  color: #7a4213;
+}
+
+.load-heavy {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.load-unknown {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+
+.srv-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.srv-facts div {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.srv-facts dt {
+  font-size: 0.68rem;
+  color: var(--ink-muted);
+}
+
+.srv-facts dd {
+  margin: 0;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.srv-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.srv-notes summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.srv-notes ul {
+  max-width: 72ch;
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.srv-notes li {
+  margin-top: 4px;
+}
+
+.srv-error,
+.srv-stale {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+}
+
+.srv-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--danger-soft);
+  border: 1px solid #e8c4bd;
+}
+
+.srv-stale {
+  background: var(--marigold-soft);
+  border: 1px solid #e7d0b4;
+  font-size: 0.8rem;
+}
+
+@keyframes srv-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .srv-pill-online .srv-dot {
+    animation: none;
+  }
+  .srv-meter > span {
+    transition: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .srv-card {
+    padding: 14px;
+  }
+  .srv-stat-value {
+    font-size: 0.92rem;
+  }
+}
