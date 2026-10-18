@@ -65,6 +65,9 @@ npm run dev                     # http://localhost:3000
 ```
 
 `npm run db:migrate && npm run db:seed` adds demo content for development.
+For a catalogue big enough to test pagination, search and the review queues, use
+`node scripts/seed-demo.mjs --reset` (defaults to 3,000 people, 240 clubs, 2,000
+events and 320 projects; `--seed=1234` reproduces the same data).
 Sign-in uses Google OAuth, or the development form when `ALLOW_DEV_SIGN_IN=true`.
 
 ## Deploy it

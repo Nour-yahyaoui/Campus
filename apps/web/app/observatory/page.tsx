@@ -3,6 +3,7 @@ import { observatorySnapshot } from "@campussphere/core";
 import { requireSuperAdmin } from "@/lib/session";
 import { bytes, formatDateTime, numeric, percent, titleCase } from "@/lib/format";
 import { Notice, Tag } from "@/components/Pieces";
+import { RefreshButton } from "@/components/RefreshButton";
 
 export const metadata: Metadata = { title: "System Observatory", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -20,6 +21,9 @@ export default async function ObservatoryPage() {
           Measured on this instance at {formatDateTime(snapshot.generatedAt)}. Each number either comes
           from a query, from the Node process, or is listed as unavailable with a reason.
         </p>
+        <div className="mt-2">
+          <RefreshButton label="Refresh snapshot" updatedAt={snapshot.generatedAt} />
+        </div>
       </div>
 
       <Notice tone="neutral">

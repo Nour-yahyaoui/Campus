@@ -21,6 +21,7 @@
     "db:migrate": "node scripts/db.mjs migrate",
     "db:status": "node scripts/db.mjs status",
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.mjs",
+    "db:seed:demo": "node scripts/seed-demo.mjs",
     "db:reset": "node scripts/db.mjs reset",
     "db:verify": "node scripts/db.mjs verify",
     "db:embed-migrations": "node scripts/embed-migrations.mjs",

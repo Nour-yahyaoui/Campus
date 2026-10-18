@@ -1427,3 +1427,277 @@ table.data tr:last-child td {
   margin-bottom: 18px;
   display: block;
 }
+
+/* ------------------------------------------------------------------ */
+/* Loading states                                                      */
+/* ------------------------------------------------------------------ */
+
+.sk-shell {
+  padding-top: 28px;
+}
+
+/* The delay keeps a fast response from flashing a skeleton for 40 ms, which
+   reads as a glitch rather than as speed. Slow responses still see it. */
+.sk-enter {
+  animation: sk-enter 0.24s ease 0.08s both;
+}
+
+@keyframes sk-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.sk-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.sk-head .sk-title {
+  margin: 2px 0 4px;
+}
+
+.sk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.sk-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.sk-row-bordered {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sk-row-bordered:last-child {
+  border-bottom: 0;
+}
+
+.sk-grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.sk-card-narrow {
+  max-width: 560px;
+}
+
+.sk-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.sk-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.sk-event-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sk-event-row:last-child {
+  border-bottom: 0;
+}
+
+.sk-search {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.sk-search .skeleton:last-child {
+  flex: none;
+}
+
+.sk-stat-row {
+  margin-top: 6px;
+}
+
+/* A thin bar at the top of the viewport while a navigation is in flight.
+   `loading.tsx` covers the content area; this covers the gap before the first
+   byte of the new route, which is the moment the app feels unresponsive. */
+.route-progress {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  z-index: 120;
+  pointer-events: none;
+  background: transparent;
+}
+
+.route-progress > span {
+  display: block;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: linear-gradient(90deg, var(--forest), var(--marigold));
+  box-shadow: 0 0 10px rgba(36, 80, 60, 0.35);
+  transition: width 0.3s ease, opacity 0.25s ease;
+}
+
+.route-progress[data-done="true"] > span {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-enter { animation: none; }
+  .route-progress > span { transition: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Retry and offline dialogs                                           */
+/* ------------------------------------------------------------------ */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(27, 29, 22, 0.45);
+  backdrop-filter: blur(3px);
+  animation: modal-fade 0.18s ease both;
+}
+
+.modal-panel {
+  width: min(540px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 26px;
+  box-shadow: 0 30px 70px -30px rgba(27, 29, 22, 0.6);
+  animation: modal-rise 0.22s ease both;
+}
+
+.modal-panel h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+}
+
+.modal-panel p {
+  color: var(--ink-soft);
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.modal-foot {
+  margin-top: 16px;
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+}
+
+.modal-foot .linkish {
+  margin-left: 4px;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop,
+  .modal-panel { animation: none; }
+}
+
+/* Pending form submissions ------------------------------------------- */
+
+.btn[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: uploader-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-spinner { animation: none; }
+}
+
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--forest);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Images get a paper-toned backdrop so a slow photograph does not flash a
+   white rectangle over the page. */
+.cover-banner,
+.card img,
+.avatar img,
+.uploader-frame img {
+  background: #e8e2d4;
+}
+
+.sk-hero {
+  display: grid;
+  gap: 28px;
+  padding-top: 20px;
+}
+
+.sk-hero-copy {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 900px) {
+  .sk-hero {
+    grid-template-columns: 1.25fr 0.75fr;
+    align-items: start;
+  }
+}
+
+.sk-hero-card {
+  min-height: 260px;
+}

@@ -1,4 +1,4 @@
-import { listClubs, listEvents, listProjects, siteUrl } from "@campussphere/core";
+import { siteUrl, sitemapCatalogue } from "@campussphere/core";
 
 /**
  * sitemap.xml.
@@ -29,8 +29,6 @@ const escapeXml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 
-const emptyPage = { items: [] as { slug: string }[], nextCursor: null };
-
 export async function GET() {
   const base = siteUrl().replace(/\/+$/, "");
   const now = new Date().toISOString();
@@ -42,26 +40,37 @@ export async function GET() {
     { loc: `${base}/about`, lastmod: now, changefreq: "monthly", priority: "0.5" },
   ];
 
-  const [clubs, projects, upcoming, past] = await Promise.all([
-    listClubs({ limit: 200 }).catch(() => emptyPage),
-    listProjects({ limit: 200 }).catch(() => emptyPage),
-    listEvents({ limit: 200, when: "upcoming" }).catch(() => emptyPage),
-    listEvents({ limit: 200, when: "past" }).catch(() => emptyPage),
-  ]);
+  // One dedicated query per type, not the paged listing services: those stop at
+  // 48 rows and would have truncated the catalogue without saying so.
+  // A failure here degrades to the five static pages rather than a 500 — a
+  // sitemap that exists but is short beats no sitemap at all.
+  const catalogue = await sitemapCatalogue().catch(() => ({ clubs: [], projects: [], events: [] }));
 
-  for (const club of clubs.items) {
-    entries.push({ loc: `${base}/clubs/${club.slug}`, lastmod: now, changefreq: "weekly", priority: "0.7" });
+  for (const club of catalogue.clubs) {
+    entries.push({
+      loc: `${base}/clubs/${club.slug}`,
+      lastmod: club.lastModified.toISOString(),
+      changefreq: "weekly",
+      priority: "0.7",
+    });
   }
-  for (const project of projects.items) {
-    entries.push({ loc: `${base}/projects/${project.slug}`, lastmod: now, changefreq: "weekly", priority: "0.7" });
+  for (const project of catalogue.projects) {
+    entries.push({
+      loc: `${base}/projects/${project.slug}`,
+      lastmod: project.lastModified.toISOString(),
+      changefreq: "weekly",
+      priority: "0.7",
+    });
   }
   // Past events stay listed: they are real pages with real content, and
   // dropping them only makes them harder to find.
-  const seen = new Set<string>();
-  for (const event of [...upcoming.items, ...past.items]) {
-    if (seen.has(event.slug)) continue;
-    seen.add(event.slug);
-    entries.push({ loc: `${base}/events/${event.slug}`, lastmod: now, changefreq: "weekly", priority: "0.7" });
+  for (const event of catalogue.events) {
+    entries.push({
+      loc: `${base}/events/${event.slug}`,
+      lastmod: event.lastModified.toISOString(),
+      changefreq: "weekly",
+      priority: "0.7",
+    });
   }
 
   const body = entries

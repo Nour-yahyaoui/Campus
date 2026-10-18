@@ -19,5 +19,6 @@ export * from "./services/admin";
 export * from "./services/observatory";
 export * from "./services/settings";
 export * from "./services/media";
+export * from "./services/sitemap";
 export * from "./storage";
 export * from "./migrations";

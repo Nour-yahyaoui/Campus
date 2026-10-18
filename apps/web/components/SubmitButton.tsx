@@ -25,10 +25,12 @@ export function SubmitButton({
       value={value}
       className={className}
       disabled={pending}
+      aria-busy={pending}
       onClick={(event) => {
         if (confirm && !window.confirm(confirm)) event.preventDefault();
       }}
     >
+      {pending ? <span className="btn-spinner" aria-hidden="true" /> : null}
       {pending ? pendingLabel : children}
     </button>
   );

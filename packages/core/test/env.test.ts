@@ -19,9 +19,9 @@ afterEach(() => {
 
 describe("loadEnv origin resolution", () => {
   it("ignores an empty NEXT_PUBLIC_SITE_URL and uses the host's production URL", () => {
-    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "campus-web-eight.vercel.app");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "campus-web.example.vercel.app");
     const env = loadEnv({ ...base, NEXT_PUBLIC_SITE_URL: "" });
-    expect(env.NEXT_PUBLIC_SITE_URL).toBe("https://campus-web-eight.vercel.app");
+    expect(env.NEXT_PUBLIC_SITE_URL).toBe("https://campus-web.example.vercel.app");
   });
 
   it("falls back to localhost when neither the variable nor the host provides one", () => {

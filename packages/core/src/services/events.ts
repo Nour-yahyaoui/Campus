@@ -91,7 +91,9 @@ export async function listEvents(options: {
   const cursor = decodeCursor(options.cursor);
   const when = options.when ?? "upcoming";
   const values: unknown[] = [limit + 1];
-  const where = ["e.status = 'published'"];
+  // `completed` is the status an event keeps once it has happened; the past view
+  // and the detail page both treat it as public, so the listing must too.
+  const where = ["e.status in ('published', 'completed')"];
   if (when === "upcoming") where.push("e.ends_at >= now()");
   if (when === "past") where.push("e.ends_at < now()");
   if (options.category) {

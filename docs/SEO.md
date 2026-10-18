@@ -70,3 +70,7 @@ curl -s https://<host>/googlee1336cabbd4b0d8b.html
 
 Then add the property in Google Search Console (the file and the meta tag both
 prove ownership) and submit `https://<host>/sitemap.xml`.
+
+The canonical production origin is `https://campus-spheree.com`; see
+[docs/DOMAIN.md](DOMAIN.md) for the DNS records and the Google redirect URI that
+have to match it.

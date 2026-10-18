@@ -8,6 +8,8 @@ import { siteUrl } from "@campussphere/core";
 import { currentUser } from "@/lib/session";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
+import { RouteProgress } from "@/components/RouteProgress";
+import { OfflineGate } from "@/components/OfflineGate";
 import { SITE, jsonLdString, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 const baseUrl = siteUrl();
@@ -107,10 +109,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           href="/opensearch.xml"
         />
         <link rel="author" href={PRODUCT.repository} />
+        <RouteProgress />
         <main id="main" className="site-main">
           {children}
         </main>
         <SiteFooter />
+        <OfflineGate />
         {/* Site-wide structured data: one WebSite node (with the sitelinks
             search box) and one Organization node every page can reference. */}
         <script
