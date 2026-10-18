@@ -81,13 +81,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      # apps/rust-api is its own Cargo workspace so that a container builder
+      # pointed at that folder (which is Render's default context) can compile
+      # it without reaching above it.
       - name: Formatting
+        working-directory: apps/rust-api
         run: cargo fmt --all -- --check
       - name: Clippy (deny warnings)
+        working-directory: apps/rust-api
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Unit tests
+        working-directory: apps/rust-api
         run: cargo test --workspace --locked
       - name: Release build
+        working-directory: apps/rust-api
         run: cargo build --release --locked -p campussphere-api
 
   rust-image:
@@ -96,10 +103,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
-      # The Dockerfile copies crates from the repository root, which is the
-      # context Render must be given. Building apps/rust-api on its own fails.
+      # This mirrors the Render service exactly: the context is apps/rust-api,
+      # not the repository root. If it builds here, it builds there.
       - name: docker build
-        run: docker build -f apps/rust-api/Dockerfile -t campussphere-rust-api:ci .
+        run: docker build -f apps/rust-api/Dockerfile -t campussphere-rust-api:ci apps/rust-api
 
   openapi:
     name: OpenAPI contract syntax

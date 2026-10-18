@@ -59,8 +59,8 @@ launch checklist).
 | `packages/core` | use cases, transactions, authorization, rate limits, audits | trust client input or render HTML |
 | `packages/contracts` | enums, zod input schemas, wire DTOs | import server-only code |
 | `migrations` | schema, constraints, triggers | contain data dependent on a deployment |
-| `crates/domain` | pure rules: capacity, waitlist, roles, feedback window, slugs | perform I/O |
-| `crates/infrastructure` | parameterised SQL, pool, rate-limit counters | decide policy |
+| `apps/rust-api/crates/domain` | pure rules: capacity, waitlist, roles, feedback window, slugs | perform I/O |
+| `apps/rust-api/crates/infrastructure` | parameterised SQL, pool, rate-limit counters | decide policy |
 | `apps/rust-api` | HTTP binding, CORS, errors, metrics | invent business rules |
 
 ## Key flows

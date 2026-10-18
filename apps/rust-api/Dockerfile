@@ -1,19 +1,26 @@
-# Multi-stage build: compile with the full toolchain, run on a minimal distroless
-# image as a non-root user.
+# CampusSphere primary API (Rust + Actix Web).
 #
-# The build context is the REPOSITORY ROOT, not this folder: the crate depends
-# on the workspace crates in ../../crates. On Render, set
+# Build with THIS FOLDER as the context — everything the build needs is here:
+#   docker build -t campussphere-rust-api apps/rust-api
+#
+# On Render that means:
 #   Dockerfile Path: apps/rust-api/Dockerfile
-#   Docker Context:  .            (the repository root)
-# Building with apps/rust-api as the context fails at the first COPY.
+#   Docker Context:  apps/rust-api
+#
+# The crate depends only on `crates/` next to it; nothing above this folder is
+# read. `--locked` uses the committed Cargo.lock, so the image is reproducible.
+
 FROM rust:1-slim-bookworm AS builder
 WORKDIR /build
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config ca-certificates \
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pkg-config ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-COPY apps/rust-api ./apps/rust-api
-COPY migrations ./migrations
+COPY src ./src
+
 RUN cargo build --release --locked -p campussphere-api
 
 FROM gcr.io/distroless/cc-debian12:nonroot

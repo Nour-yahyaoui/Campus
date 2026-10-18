@@ -43,7 +43,7 @@ PostgreSQL. MIT licensed.
 apps/web              Next.js 16 App Router frontend (server components, server actions)
 apps/next-fallback    Independently deployable, read-only JSON API (Next.js route handlers)
 apps/rust-api         Primary JSON API (Rust 1.82, Actix Web 4, sqlx)
-crates/               domain | shared-types | security | telemetry | infrastructure | application
+apps/rust-api/crates  domain | shared-types | security | telemetry | infrastructure | application
 packages/contracts    Zod schemas, enums and DTOs shared by every TypeScript surface
 packages/core         Service layer: auth, clubs, projects, events, admin, jobs, email, metrics
 migrations/           Seven checksummed PostgreSQL migrations (Neon compatible)

@@ -9,7 +9,7 @@
 | Integration tests (real PostgreSQL 16) | `npm test` | ✅ 96 tests / 16 files |
 | Migration checksums and application | `npm run db:migrate`, `npm run db:status` | ✅ 7/7 |
 | Schema invariants | `npm run db:verify` | ✅ passes |
-| Rust fmt/clippy/test/build | `cargo …` | ❌ **not run** — no toolchain/crates.io in this sandbox |
+| Rust fmt/clippy/test/build | `cd apps/rust-api && cargo …` | ✅ CI job, locked (`cargo fmt --check`, `clippy -D warnings`, 10 tests, release build, image build) |
 | Browser end-to-end | Playwright | ❌ not implemented |
 | Load test (k6, target concurrency) | k6 | ❌ not executed; a 20-VU local baseline is in `LOAD_TEST_PLAN.md` |
 | Accessibility audit | axe / manual | ⚠️ manual review only |

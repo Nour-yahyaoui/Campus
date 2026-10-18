@@ -1,5 +1,4 @@
-target
-.git
-node_modules
+target/
+*.md
 .env
 .env.*

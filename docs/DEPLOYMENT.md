@@ -101,8 +101,14 @@ variable. They would be shipped to the browser.
 - Migrations: **do not** run them on container start. They run in the deploy
   pipeline before the new revision is promoted.
 
-First build requires network access to crates.io to generate `Cargo.lock`. Commit
-that lockfile; then release builds use the pinned dependency graph.
+Build from `apps/rust-api` — that folder is a self-contained Cargo workspace
+(the crate plus its `crates/`), and it is the Docker context the service uses:
+
+```bash
+docker build -t campussphere-rust-api apps/rust-api
+```
+
+`Cargo.lock` is committed, so the image builds with `--locked`.
 
 ## 4. Fallback API — Render
 

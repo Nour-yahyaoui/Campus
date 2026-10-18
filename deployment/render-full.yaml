@@ -82,15 +82,15 @@ services:
 
   # --------------------------------------------------------- primary Rust API
   # Optional read-only JSON API. CI compiles, lints, tests it and builds this
-  # image on every push. Docker Context must stay "." (the repository root):
-  # the crate depends on the workspace crates outside apps/rust-api.
+  # image on every push. The context is apps/rust-api because that folder is a
+  # self-contained Cargo workspace.
   - type: web
     name: campussphere-rust-api
     runtime: docker
     plan: starter
     region: frankfurt
     dockerfilePath: ./apps/rust-api/Dockerfile
-    dockerContext: .
+    dockerContext: ./apps/rust-api
     healthCheckPath: /health/ready
     autoDeploy: false
     envVars:

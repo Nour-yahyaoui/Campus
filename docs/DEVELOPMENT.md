@@ -98,14 +98,17 @@ when `ALLOW_DEV_SIGN_IN=true` and `NODE_ENV !== "production"`).
 
 ## Rust
 
+`apps/rust-api` is its own Cargo workspace (the API crate plus `crates/`), so
+every command runs from that folder:
+
 ```bash
+cd apps/rust-api
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run -p campussphere-api        # needs DATABASE_URL
+docker build -t campussphere-rust-api .   # same context Render uses
 ```
 
-The Rust crates are independent of npm. `cargo generate-lockfile` must be run
-once with network access and the resulting `Cargo.lock` committed for
-reproducible release builds (see the launch checklist); it is not present in
-this sandbox because crates.io was unreachable.
+`Cargo.lock` is committed, so builds use `--locked` and resolve the same graph
+everywhere.

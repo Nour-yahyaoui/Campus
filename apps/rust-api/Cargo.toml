@@ -1,3 +1,19 @@
+# CampusSphere primary API — Rust + Actix Web.
+#
+# This folder is a complete, self-contained Cargo workspace: the API crate and
+# the six library crates it uses (`crates/`), plus its own lockfile. That is
+# deliberate. A container builder that is pointed at `apps/rust-api` — Render's
+# default when the Dockerfile lives here — cannot see anything above it, so the
+# build must not need `../../crates` or `../../migrations`. It doesn't.
+#
+# Render settings this file is written for:
+#   Runtime:         Docker
+#   Dockerfile Path: apps/rust-api/Dockerfile
+#   Docker Context:  apps/rust-api
+#
+# Build/run locally: `cargo run -p campussphere-api` with DATABASE_URL set.
+# Health: GET /health/live, GET /health/ready.
+
 [package]
 name = "campussphere-api"
 version.workspace = true
@@ -10,11 +26,11 @@ name = "campussphere-api"
 path = "src/main.rs"
 
 [dependencies]
-campussphere-shared-types = { path = "../../crates/shared-types" }
-campussphere-application = { path = "../../crates/application" }
-campussphere-infrastructure = { path = "../../crates/infrastructure" }
-campussphere-security = { path = "../../crates/security" }
-campussphere-telemetry = { path = "../../crates/telemetry" }
+campussphere-shared-types = { path = "crates/shared-types" }
+campussphere-application = { path = "crates/application" }
+campussphere-infrastructure = { path = "crates/infrastructure" }
+campussphere-security = { path = "crates/security" }
+campussphere-telemetry = { path = "crates/telemetry" }
 actix-web.workspace = true
 actix-cors.workspace = true
 sqlx.workspace = true
@@ -26,3 +42,33 @@ uuid.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 dotenvy.workspace = true
+
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+authors = ["Nour Yahyaoui"]
+repository = "https://github.com/Nour-yahyaoui/Campus"
+
+[workspace.dependencies]
+actix-web = "4.9"
+actix-cors = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate", "macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+sha2 = "0.10"
+rand = "0.8"
+hex = "0.4"
+subtle = "2.6"
+dotenvy = "0.15"
