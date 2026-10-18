@@ -6,7 +6,7 @@
 #   Dockerfile Path: apps/rust-api/Dockerfile
 #   Docker Context:  .            (the repository root)
 # Building with apps/rust-api as the context fails at the first COPY.
-FROM rust:1.82-slim-bookworm AS builder
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /build
 RUN apt-get update && apt-get install -y --no-install-recommends pkg-config ca-certificates \
     && rm -rf /var/lib/apt/lists/*

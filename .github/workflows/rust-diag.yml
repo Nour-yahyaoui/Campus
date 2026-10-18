@@ -66,7 +66,7 @@ jobs:
           docker build -q -f apps/rust-api/Dockerfile -t campussphere-rust-api:diag . > "$RUNNER_TEMP/docker.txt" 2>&1
           echo "\`exit=$?\`" >> "$out"
           echo '```' >> "$out"
-          tail -25 "$RUNNER_TEMP/docker.txt" >> "$out"
+          grep -E "error|ERROR|Cargo|required|rustc" "$RUNNER_TEMP/docker.txt" | head -40 >> "$out"
           echo '```' >> "$out"
 
           cp "$out" rust-diag.md
