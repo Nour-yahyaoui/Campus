@@ -1,8 +1,5 @@
-import type {
-  LoadLevel,
-  ServerCpu,
-  ServerMemory,
-} from "@campussphere/contracts";
+import { MIN_LATENCY_SAMPLES } from "@campussphere/contracts";
+import type { LoadLevel, ServerCpu, ServerMemory } from "@campussphere/contracts";
 
 /**
  * Turning measurements into a verdict.
@@ -34,7 +31,7 @@ export interface LoadSignals {
 /** Below this age, the process is still paying startup costs. */
 export const MIN_LOAD_UPTIME_SECONDS = 30;
 /** Below this sample count, latency percentiles are not a trend. */
-export const MIN_LATENCY_SAMPLES = 20;
+export { MIN_LATENCY_SAMPLES };
 
 export interface LoadVerdict {
   level: LoadLevel;

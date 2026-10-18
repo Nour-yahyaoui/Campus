@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { MIN_LATENCY_SAMPLES } from "@campussphere/contracts";
 import type { LoadLevel, ServerNode, SystemSnapshot } from "@campussphere/contracts";
 import { bytes } from "@/lib/format";
 
@@ -331,7 +332,13 @@ export function SystemPanel() {
             <span className="tiny muted">
               {snapshot.traffic.requests} API request{snapshot.traffic.requests === 1 ? "" : "s"} in the
               last {snapshot.traffic.windowMinutes} min
-              {snapshot.traffic.p95Ms !== null ? ` · p95 ${snapshot.traffic.p95Ms} ms` : ""}
+              {snapshot.traffic.p95Ms !== null
+                ? ` · p95 ${snapshot.traffic.p95Ms} ms${
+                    snapshot.traffic.requests < MIN_LATENCY_SAMPLES
+                      ? ` (${snapshot.traffic.requests} requests, too few to judge)`
+                      : ""
+                  }`
+                : ""}
               {snapshot.traffic.errors > 0 ? ` · ${snapshot.traffic.errors} error${snapshot.traffic.errors === 1 ? "" : "s"}` : ""}
               {" · "}env {snapshot.environment}
             </span>

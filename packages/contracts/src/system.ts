@@ -20,6 +20,13 @@ export type ServerStatus =
 
 export type LoadLevel = "warming" | "idle" | "light" | "moderate" | "heavy" | "unknown";
 
+/**
+ * How many requests a latency percentile needs before it is allowed to
+ * influence the verdict. Shared by the classifier and by the panel that
+ * prints the number, so the two can never disagree.
+ */
+export const MIN_LATENCY_SAMPLES = 20;
+
 export interface ServerMemory {
   rssBytes: number;
   /** High-water mark, where the kernel exposes it. */
