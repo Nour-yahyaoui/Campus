@@ -383,6 +383,7 @@ export async function systemSnapshot(): Promise<SystemSnapshot> {
       "Next.js renders every page and /api/* call. The Actix service is the optional read API at /api/v1/*; it is not in this dashboard's request path.",
       "On Vercel each function instance reports its own memory. These are the numbers for the instance that answered this request, not a fleet total.",
       "Load average is the host's, not the container's, on shared platforms; CPU and memory are the process's own.",
+      "The event-loop figure is a rolling window, reset on every reading. It needs 150 samples before it is shown, and no verdict is issued for the first 30 seconds of a process.",
     ],
   };
 }
