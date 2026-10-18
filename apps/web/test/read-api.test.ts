@@ -47,7 +47,14 @@ vi.mock("@campussphere/core", () => ({
   getEventBySlug: async (slug: string) => ({ slug }),
   searchAll: async () => ({ clubs: [], projects: [], events: [] }),
   notFound: failing(404),
+  unauthorized: failing(401),
   unavailable: failing(503),
+}));
+
+const session: { user: { id: string; name: string } | null } = { user: null };
+
+vi.mock("@/lib/session", () => ({
+  currentUser: async () => session.user,
 }));
 
 const route = await import("../app/api/v1/[...rest]/route");
@@ -68,6 +75,7 @@ function call(
 describe("the public read API", () => {
   beforeEach(() => {
     config.API_BASE_URL = undefined;
+    session.user = null;
     vi.unstubAllGlobals();
   });
 
@@ -136,16 +144,69 @@ describe("the public read API", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response(JSON.stringify({ error: { code: "not_found" } }), {
-          status: 404,
+        new Response(JSON.stringify({ error: { code: "rate_limited" } }), {
+          status: 429,
           headers: { "content-type": "application/json" },
         }),
       ),
     );
 
-    const response = await call("GET", ["clubs", "does-not-exist"]);
-    expect(response.status).toBe(404);
+    const response = await call("GET", ["search"], "?q=coffee");
+    expect(response.status).toBe(429);
     expect(response.headers.get("x-campussphere-served-by")).toBe("actix-primary");
+  });
+
+  it("answers detail routes itself, because the Rust subset has none", async () => {
+    config.API_BASE_URL = "https://campusshere.onrender.com";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await call("GET", ["clubs", "coffee-collective"]);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-campussphere-served-by")).toBe("nextjs-fallback");
+    expect(response.headers.get("x-campussphere-primary")).toBe("not-this-route");
+    // No pointless round trip that would only come back as "unsupported".
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("carries the session cookie to the primary for /me", async () => {
+    config.API_BASE_URL = "https://campusshere.onrender.com";
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ data: { id: "u1", name: "Nour" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = new Request("https://campus-spheree.vercel.app/api/v1/me", {
+      headers: { cookie: "cs_session=abc123" },
+    });
+    const response = (await route.GET(request, {
+      params: Promise.resolve({ rest: ["me"] }),
+    })) as Response;
+
+    expect(response.headers.get("x-campussphere-served-by")).toBe("actix-primary");
+    const init = (fetchMock.mock.calls[0] as unknown[])[1] as { headers: Record<string, string> };
+    expect(init.headers.cookie).toBe("cs_session=abc123");
+  });
+
+  it("answers /me locally from the same session when the primary is away", async () => {
+    config.API_BASE_URL = "https://campusshere.onrender.com";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    expect((await call("GET", ["me"])).status).toBe(401);
+
+    session.user = { id: "u1", name: "Nour" };
+    const signedIn = await call("GET", ["me"]);
+    expect(signedIn.status).toBe(200);
+    expect(((await signedIn.json()) as { data: { name: string } }).data.name).toBe("Nour");
+    expect(signedIn.headers.get("x-campussphere-served-by")).toBe("nextjs-fallback");
   });
 
   it("refuses writes instead of half-implementing them", async () => {

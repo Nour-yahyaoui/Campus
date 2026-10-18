@@ -4,6 +4,7 @@ import {
   projectListQuery,
   searchQuery,
 } from "@campussphere/contracts";
+import { currentUser } from "@/lib/session";
 import {
   enforceRateLimit,
   getClubBySlug,
@@ -18,6 +19,7 @@ import {
   notFound,
   parseQuery,
   searchAll,
+  unauthorized,
   unavailable,
 } from "@campussphere/core";
 
@@ -38,6 +40,14 @@ export const dynamic = "force-dynamic";
  */
 
 const UPSTREAM_TIMEOUT_MS = 8_000;
+
+/**
+ * Exactly what the Rust service implements. Detail routes and anything else
+ * are answered here, because forwarding them upstream would only earn a 503
+ * saying "not part of the read subset" — an honest answer, but a worse one
+ * than the page we can render from the same database.
+ */
+const UPSTREAM_PATHS = new Set(["clubs", "projects", "events", "search", "me"]);
 
 type ServedBy = "actix-primary" | "nextjs-fallback";
 
@@ -69,15 +79,25 @@ function passThrough(response: Response, servedBy: ServedBy): Response {
 async function fromPrimary(request: Request, base: URL, path: string): Promise<Response | null> {
   const target = new URL(`/api/v1/${path}`, base);
   target.search = new URL(request.url).search;
+
+  // `/me` is session-scoped: the Rust service reads the same `cs_session`
+  // cookie, so it must travel with the request or every signed-in caller
+  // would be told to sign in.
+  const headers: Record<string, string> = { accept: "application/json" };
+  const cookie = request.headers.get("cookie");
+  if (cookie) headers.cookie = cookie;
+  const authorization = request.headers.get("authorization");
+  if (authorization) headers.authorization = authorization;
+
   try {
     const response = await fetch(target, {
       method: "GET",
-      headers: { accept: "application/json" },
+      headers,
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       cache: "no-store",
     });
-    // A 5xx is the primary saying it cannot answer; fall back. A 4xx is a
-    // correct answer about the request and is passed through as-is.
+    // A 5xx is the primary saying it cannot answer, so the fallback answers.
+    // A 4xx is a correct answer about the request and is passed through.
     if (response.status >= 500) return null;
     return passThrough(response, "actix-primary");
   } catch {
@@ -96,6 +116,13 @@ async function fromFallback(request: Request, path: string): Promise<Response> {
   const url = new URL(request.url);
 
   if (extra.length > 0) throw notFound("This endpoint is not part of the read contract.");
+
+  if (head === "me" && !slug) {
+    const user = await currentUser();
+    if (!user) throw unauthorized("Sign in to continue");
+    return jsonResponse({ data: user }, 200, { "cache-control": "no-store" });
+  }
+
   if (head !== "clubs" && head !== "projects" && head !== "events" && head !== "search") {
     throw notFound("This endpoint is not part of the read contract.");
   }
@@ -166,7 +193,8 @@ async function serve(request: Request, rest: string[]): Promise<Response> {
   }
 
   const base = upstream();
-  if (base) {
+  const forward = base !== null && !path.includes("/") && UPSTREAM_PATHS.has(path);
+  if (base && forward) {
     const response = await fromPrimary(request, base, path);
     if (response) return response;
   }
@@ -174,8 +202,14 @@ async function serve(request: Request, rest: string[]): Promise<Response> {
   await enforceRateLimit(request, "api.v1", 120, 60);
   const response = await fromFallback(request, path);
   response.headers.set("x-campussphere-served-by", "nextjs-fallback");
-  response.headers.set("x-campussphere-primary", base ? "unreachable" : "not-configured");
-  if (base) response.headers.set("warning", '110 - "the Actix primary did not answer; served from the fallback"');
+  const attempted = base !== null && forward;
+  response.headers.set(
+    "x-campussphere-primary",
+    attempted ? "unreachable" : base ? "not-this-route" : "not-configured",
+  );
+  if (attempted) {
+    response.headers.set("warning", '110 - "the Actix primary did not answer; served from the fallback"');
+  }
   return response;
 }
 
