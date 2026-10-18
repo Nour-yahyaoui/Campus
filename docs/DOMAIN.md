@@ -1,91 +1,84 @@
-# Custom domain: campus-spheree.com
+# The site address
 
-The canonical origin for the web app is **https://campus-spheree.com**. Everything
-that has to agree about the origin — canonical links, `sitemap.xml`, `robots.txt`,
-`llms.txt`, the RSS feed, OAuth redirect URIs and session cookies — reads it from
-one variable, `NEXT_PUBLIC_SITE_URL`.
+The canonical origin of this deployment is **https://campus-spheree.vercel.app**.
 
-## What is already done
+It is set in exactly one place — the `NEXT_PUBLIC_SITE_URL` environment variable on
+Vercel (production + preview) — and everything that has to agree about the origin
+reads it: canonical links, `sitemap.xml`, `robots.txt`, `llms.txt`, the RSS feed,
+OAuth redirect URIs and session-cookie scope.
 
-| Step | Where | State |
-| --- | --- | --- |
-| Domain added to the project | Vercel → campus-web → Domains | done |
-| `NEXT_PUBLIC_SITE_URL=https://campus-spheree.com` | Vercel → Environment Variables (production + preview) | done |
-| Code that hardcoded a host | none — `siteUrl()` is the only source | done |
+There is **no custom domain** on this project. The host `campus-spheree.com` was
+attached to the Vercel project at some point and then dropped; it has no DNS
+records, resolves to nothing (`ENOTFOUND`) and cannot receive traffic. It is safe
+to leave it attached and unused, or to remove it under Vercel → campus-web →
+Settings → Domains.
 
-## What only the domain owner can do
+## Why the Vercel URL is the canonical one
 
-The domain has **no A record yet**: the registry answers with its own default
-nameservers, so nothing resolves it. Two ways to fix that, pick one.
+- It exists today, with a valid certificate, and is the host that is registered on
+  the Google OAuth client — so sign-in works without anyone touching DNS.
+- A canonical URL must be one that actually answers. Pointing canonicals at a
+  domain that does not resolve pushes search engines to a dead host.
+- Switching later is a variable change plus a redeploy, nothing else.
 
-### Option A — point DNS at Vercel (keeps your current DNS provider)
+## When you do get a domain (optional, ~15 minutes)
 
-At the registrar or DNS host for `campus-spheree.com`:
+1. **Attach it**: Vercel → campus-web → Settings → Domains → add the domain.
+2. **Point DNS at Vercel** — either the `A`/`CNAME` records below, or move the
+   nameservers to `ns1.vercel-dns.com` / `ns2.vercel-dns.com`:
 
-| Type | Name | Value |
-| --- | --- | --- |
-| `A` | `@` | `216.198.79.1` |
-| `A` | `@` | `64.29.17.1` |
-| `CNAME` | `www` | `91bf3867a6277b75.vercel-dns-017.com` |
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | `A` | `@` | `216.198.79.1` |
+   | `A` | `@` | `64.29.17.1` |
+   | `CNAME` | `www` | `91bf3867a6277b75.vercel-dns-017.com` |
 
-(`76.76.21.21` also works as the single A value; Vercel lists it as the rank-2
-recommendation.)
+   `76.76.21.21` also works as a single `A` value. Vercel shows the current
+   recommended records on the domain's page — trust that panel over this table if
+   they ever disagree.
+3. **Change the canonical origin**:
+   `NEXT_PUBLIC_SITE_URL=https://your-domain` (no trailing slash), then redeploy.
+   The value is inlined at build time, so an existing deployment will not pick it
+   up on its own.
+4. **Google sign-in**: add `https://your-domain/api/auth/google/callback` to the
+   OAuth client's authorised redirect URIs (Google Cloud Console → APIs &
+   Services → Credentials). Google matches the string verbatim.
+5. **Verify**:
 
-### Option B — let Vercel manage DNS (simplest, recommended for a fresh domain)
+   ```bash
+   curl -sI https://your-domain | head -3
+   curl -s  https://your-domain/robots.txt | tail -2
+   curl -s  https://your-domain/sitemap.xml | head -4
+   curl -s  https://your-domain/llms.txt | head -3
+   ```
 
-At the registrar, replace the nameservers with:
+   Robots, sitemap and llms must all name the new domain. If they do not, the
+   deployment predates the variable change — redeploy.
+
+### `www`
+
+Add `www.your-domain` in Vercel as a **redirect** (308) to the apex. Do not serve
+both: two live origins split search signal and make the canonical link a lie on
+one of them.
+
+## Google sign-in on more than one host
+
+The redirect URI follows the host the browser is actually on — canonical host, any
+`*.vercel.app` alias, or an origin listed in `AUTH_ALLOWED_ORIGINS` — and the
+callback repeats the same value for the token exchange. A host that is not
+registered on the OAuth client fails with:
 
 ```
-ns1.vercel-dns.com
-ns2.vercel-dns.com
+Error 400: redirect_uri_mismatch
 ```
 
-Then add the domain in Vercel → Project → Domains and accept the defaults; Vercel
-creates the records itself once the zone is delegated.
-
-Either way, wait for propagation (`dig +short campus-spheree.com`) before judging
-the result — Vercel issues the TLS certificate automatically as soon as DNS
-resolves to it.
-
-## The one Google-side change
-
-Google compares the redirect URI **verbatim**, and the app starts the flow on the
-host the browser is actually on: the canonical host, any `*.vercel.app` alias, or
-another host listed in `AUTH_ALLOWED_ORIGINS`. One entry per host you will use.
-
-Google Cloud Console → **APIs & Services → Credentials → your OAuth 2.0 Web
-client → Authorised redirect URIs**:
-
-| Redirect URI | Why |
-| --- | --- |
-| `https://campus-spheree.com/api/auth/google/callback` | the canonical host, once DNS resolves |
-| `https://campus-spheree.vercel.app/api/auth/google/callback` | usable today, before DNS |
-| `https://campus-web-eight.vercel.app/api/auth/google/callback` | the older alias, if you still open it |
-
-`Error 400: redirect_uri_mismatch` means the host in the address bar is missing
-from that list — the deployment is fine. Google can take a few minutes to pick up
-a new entry; a hard reload of the sign-in page is enough after that.
-
-## Setting `www`
-
-If you want `www.campus-spheree.com` to work, add it in Vercel as a **redirect** to
-`campus-spheree.com` (308). Do not serve both: two live origins split your search
-signal and make the canonical link a lie on one of them.
-
-## Verifying after DNS lands
-
-```bash
-curl -sI https://campus-spheree.com | head -3
-curl -s  https://campus-spheree.com/robots.txt | tail -2
-curl -s  https://campus-spheree.com/sitemap.xml | head -4
-curl -s  https://campus-spheree.com/llms.txt | head -3
-```
-
-Each of the last three must contain `campus-spheree.com`, not a `*.vercel.app`
-hostname. If they do not, the deployment predates the variable change — redeploy.
+That error is always a Google-side list problem: add the exact URI shown in the
+error's "details" (or the host in your address bar plus
+`/api/auth/google/callback`), wait a few minutes, and retry. Nothing in the
+deployment needs to change.
 
 ## Certificate and HSTS
 
-Vercel issues and renews the certificate. `Strict-Transport-Security` is set by the
-app on every response, which is safe for a domain served only over HTTPS; do not
+Vercel issues and renews the certificate. `Strict-Transport-Security` is set by
+the app on every response, which is safe for hosts served only over HTTPS; do not
 enable `includeSubDomains` until every subdomain is HTTPS too.
