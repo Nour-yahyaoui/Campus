@@ -62,6 +62,13 @@ jobs:
           grep -E "test result|^error|FAILED|panicked" "$RUNNER_TEMP/test.txt" | head -40 >> "$out"
           echo '```' >> "$out"
 
+          echo "## docker build (repository root context)" >> "$out"
+          docker build -q -f apps/rust-api/Dockerfile -t campussphere-rust-api:diag . > "$RUNNER_TEMP/docker.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```' >> "$out"
+          tail -25 "$RUNNER_TEMP/docker.txt" >> "$out"
+          echo '```' >> "$out"
+
           cp "$out" rust-diag.md
           # The lockfile makes the Docker/CI builds reproducible; there is no
           # way to generate it in the authoring environment.
