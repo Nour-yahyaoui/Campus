@@ -63,6 +63,9 @@ jobs:
           echo '```' >> "$out"
 
           cp "$out" rust-diag.md
+          # The lockfile makes the Docker/CI builds reproducible; there is no
+          # way to generate it in the authoring environment.
+          cp Cargo.lock Cargo.lock 2>/dev/null || true
 
       - name: Publish
         if: always()
