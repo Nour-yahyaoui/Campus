@@ -30,7 +30,7 @@ const LOAD_WORD: Record<LoadLevel, string> = {
   light: "Light",
   moderate: "Busy",
   heavy: "Under load",
-  unknown: "Measuring",
+  unknown: "No data",
 };
 
 function uptime(seconds: number | null): string {
@@ -155,13 +155,15 @@ function NodeCard({ node, history }: { node: ServerNode; history?: number[] }) {
         </div>
       ) : null}
 
-      <div className="srv-load">
-        <span className={`srv-load-chip load-${node.load.level}`}>
-          <span className="srv-load-dot" aria-hidden="true" />
-          {LOAD_WORD[node.load.level]}
-        </span>
-        <span className="tiny muted">{node.load.reason}</span>
-      </div>
+      {node.status === "online" || node.status === "degraded" ? (
+        <div className="srv-load">
+          <span className={`srv-load-chip load-${node.load.level}`}>
+            <span className="srv-load-dot" aria-hidden="true" />
+            {LOAD_WORD[node.load.level]}
+          </span>
+          <span className="tiny muted">{node.load.reason}</span>
+        </div>
+      ) : null}
 
       {node.facts.length > 0 ? (
         <dl className="srv-facts">
