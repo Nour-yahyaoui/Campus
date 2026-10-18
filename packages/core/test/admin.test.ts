@@ -47,6 +47,34 @@ describe("super-admin controls", () => {
     expect(await resolveSession(adminSession.token)).toBeNull();
   });
 
+  it("refuses a demotion that would leave no active super-admin", async () => {
+    await resetDb();
+    const first = await makeAdmin();
+    const second = await makeAdmin();
+    // `first` demotes `second`, leaving `first` as the only admin.
+    await setUserRoles(first, second.id, ["student"]);
+    // `second` still holds a stale in-memory super_admin role — exactly what a
+    // concurrent demotion looks like. The count must be re-read under lock.
+    await expect(setUserRoles(second, first.id, ["student"])).rejects.toMatchObject({
+      code: "conflict",
+    });
+    const remaining = await query<{ n: number }>(
+      "select count(*)::int as n from users where 'super_admin' = any(roles) and status = 'active'",
+    );
+    expect(remaining.rows[0]!.n).toBe(1);
+  });
+
+  it("records a role swap as a change with the exact diff, not a revocation", async () => {
+    await resetDb();
+    const admin = await makeAdmin();
+    const user = await makeUser();
+    await setUserRoles(admin, user.id, ["student", "moderator"]);
+    await setUserRoles(admin, user.id, ["student", "super_admin"]);
+    const events = await listAudit({ limit: 10, actionPrefix: "user." });
+    const swap = events.find((event) => event.action === "user.roles_changed");
+    expect(swap?.metadata).toMatchObject({ added: ["super_admin"], removed: ["moderator"] });
+  });
+
   it("revokes existing sessions when someone is suspended", async () => {
     const admin = await makeAdmin();
     const target = await makeUser();

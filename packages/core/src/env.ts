@@ -72,6 +72,15 @@ const schema = z.object({
   // and Docker both do). It is a budget for the percentage, not a quota.
   SERVER_MEMORY_LIMIT_MB: optionalInteger,
 
+  // How many proxies in front of the app are trusted to have appended to
+  // `x-forwarded-for`. One (the default) is right for Vercel and Render: the
+  // last entry is the address the proxy saw, everything before it is
+  // client-supplied and therefore spoofable.
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(1).max(10).default(1),
+  // Key for HMAC-ing IP addresses before storage. Optional so local
+  // development needs no configuration; production should set it.
+  IP_HASH_SECRET: optionalString,
+
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
   ALLOW_DEV_SIGN_IN: booleanish,
@@ -90,6 +99,12 @@ const schema = z.object({
   // may only set up a database that has no super-admin yet. An empty value in
   // .env means "not set", like every other optional string here.
   SETUP_TOKEN: z.preprocess(blankToUndefined, z.string().min(8).optional()),
+
+  // The zero-touch alternative to SETUP_TOKEN: the first *verified* Google
+  // sign-in with exactly this address is granted super_admin once, and the
+  // setting is then inert. It removes the first-run window in which anyone who
+  // finds `/api/initialize` could create themselves an admin account.
+  INITIAL_ADMIN_EMAIL: z.preprocess(blankToUndefined, z.string().email().optional()),
 
   // Optional, comma-separated origins whose `/api/auth/google/callback` is a
   // registered redirect URI on the Google client. Vercel aliases are allowed

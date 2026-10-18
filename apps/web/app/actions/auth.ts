@@ -4,9 +4,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { devLoginInput, profileUpdateInput } from "@campussphere/contracts";
 import {
+  clientIpFromHeaders,
   consumeRateLimit,
   devSignIn,
-  hashToken,
+  hashIp,
+  isAppError,
   requestDeletion,
   updateProfile,
   exportMyData,
@@ -21,23 +23,25 @@ export async function devSignInAction(formData: FormData): Promise<void> {
     name: str(formData, "name") || undefined,
   });
   if (!parsed.success) {
-    back("/login", { error: parsed.error.issues[0]?.message ?? "Check the form.", next });
+    back("/login", { error: "invalid_email", next });
   }
   try {
     const headerList = await headers();
-    const ip = headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const ip = clientIpFromHeaders(headerList);
     // Sign-in is the highest-value endpoint to brute-force; cap it per address.
-    await consumeRateLimit(`auth.dev:${hashToken(ip).slice(0, 24)}`, 10, 300);
+    await consumeRateLimit(`auth.dev:${hashIp(ip).slice(0, 24)}`, 10, 300);
     const session = await devSignIn({
       email: parsed.data.email,
       name: parsed.data.name,
       userAgent: headerList.get("user-agent"),
       ip,
+      host: headerList.get("host"),
     });
     await setSessionCookie(session);
   } catch (error) {
     if (isRedirect(error)) throw error;
-    back("/login", { error: errorMessage(error), next });
+    const code = isAppError(error) && /disabled/i.test(error.message) ? "dev_signin_disabled" : "dev_signin_failed";
+    back("/login", { error: code, next });
   }
   redirect(next);
 }

@@ -5,7 +5,7 @@ import { badRequest, errorResponse, forbidden, toAppError } from "./errors";
 import { getEnv } from "./env";
 import { recordRequestMetric } from "./services/observatory";
 import { consumeRateLimit } from "./ratelimit";
-import { hashToken } from "./auth";
+import { hashIp } from "./privacy";
 
 export interface RequestContext {
   correlationId: string;
@@ -22,17 +22,38 @@ export function correlationIdFrom(request: Request): string {
 }
 
 /**
- * Client IP as seen by the hosting proxy. Both Vercel and Render set
- * x-forwarded-for; we take the first entry and hash it before storage.
+ * Client IP as seen by the *last* trusted proxy.
+ *
+ * `x-forwarded-for` is append-only: a client can send any value it likes and
+ * the proxy appends the address it actually saw. Reading the first entry — as
+ * this used to — lets an attacker rotate a fake value on every request and
+ * bypass every IP-based rate limit. `TRUSTED_PROXY_HOPS` says how many entries
+ * at the right-hand end were written by infrastructure we trust; with the
+ * default of one (Vercel, Render, a single nginx) that is the final entry.
  */
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]!.trim().slice(0, 64);
-  return request.headers.get("x-real-ip")?.slice(0, 64) ?? "unknown";
+  return clientIpFromHeaders(request.headers);
+}
+
+/** Same rule for server actions, which receive `headers()` rather than a Request. */
+export function clientIpFromHeaders(headers: Headers): string {
+  const forwarded = headers.get("x-forwarded-for");
+  if (forwarded) {
+    const parts = forwarded
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length > 0) {
+      const hops = getEnv().TRUSTED_PROXY_HOPS;
+      const entry = parts[Math.max(0, parts.length - hops)];
+      if (entry) return entry.slice(0, 64);
+    }
+  }
+  return headers.get("x-real-ip")?.trim().slice(0, 64) || "unknown";
 }
 
 export function ipHash(request: Request): string {
-  return hashToken(clientIp(request)).slice(0, 24);
+  return hashIp(clientIp(request)).slice(0, 24);
 }
 
 /**
@@ -146,6 +167,11 @@ export async function handleApi(
   }
   const duration = performance.now() - started;
   response.headers.set("x-correlation-id", context.correlationId);
+  // A hint clients and CDNs can act on; the JSON body says the same thing but
+  // nothing reads it automatically.
+  if ((response.status === 429 || response.status === 503) && !response.headers.has("retry-after")) {
+    response.headers.set("retry-after", "10");
+  }
   void recordRequestMetric({
     route,
     method: context.method,

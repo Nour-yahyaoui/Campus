@@ -24,14 +24,23 @@ use std::time::Instant;
 /// 120 requests per minute per hashed client address and route. Limits live in
 /// PostgreSQL so every instance agrees; see infrastructure::consume_rate_limit.
 async fn guard_rate(state: &AppState, request: &HttpRequest, route: &str) -> Result<(), ApiError> {
+    // `x-forwarded-for` is append-only and client-controlled at the front, so
+    // the address the proxy actually saw is the *last* entry. Falling back to a
+    // single literal bucket ("unknown") would let every header-less client
+    // share one 120 req/min budget and deny the route to all of them.
     let forwarded = request
         .headers()
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
+        .and_then(|value| value.rsplit(',').next())
         .map(str::trim)
-        .unwrap_or("unknown");
-    let hash = campussphere_security::hash_token(forwarded);
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        // A direct connection still has an address; only a request with neither
+        // a forwarded chain nor a peer address shares the last-resort bucket.
+        .or_else(|| request.peer_addr().map(|address| address.ip().to_string()))
+        .unwrap_or_else(|| "unknown".to_string());
+    let hash = campussphere_security::hash_token(&forwarded);
     let bucket = format!("rust:{}:{}", &hash[..24.min(hash.len())], route);
     let allowed = campussphere_infrastructure::consume_rate_limit(&state.pool, &bucket, 120, 60)
         .await

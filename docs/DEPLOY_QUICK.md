@@ -72,55 +72,69 @@ That is the only database thing you need. **Do not run any SQL.**
    `{"status":"ok", …}` even though the database is still empty — that is
    expected and intentional.
 
-## 4. Create the database and your account (10 seconds)
+## 4. Create the database and your account (about a minute)
 
-Open this URL in a browser, with your own email:
+Set `INITIAL_ADMIN_EMAIL=you@university.edu` in Render → **Environment** (the
+blueprint asks for it). Then open:
 
 ```
-https://<your-app-url>/api/initialize?email=you@university.edu
+https://<your-app-url>/api/initialize
 ```
 
-You will see **Setup complete**:
+You will see a status page. **Press “Run setup.”** The page only changes
+anything on a POST, because a bare GET is what link previews and scanners send —
+it reports state and never mutates it. The button applies every pending
+migration, with the same ledger and checksums the CLI uses, so the two can never
+disagree.
 
-- every migration applied (the same ledger the CLI uses, so nothing can drift),
-- your email created as the first super-admin.
+Then go to `/login` → **Continue with Google** using that same address. The
+first *verified* Google sign-in with it becomes the first super-admin; after that
+the variable does nothing. Create your first club or approve the first project
+from `/admin`.
 
-Then go to `/login`, choose **Continue with Google**, and sign in with that same
-email. The account is already linked, so you land in `/dashboard` as a
-super-admin. Create your first club or approve the first project from `/admin`.
+Prefer a terminal? Same thing:
 
-Visiting the URL again is safe: it reports status and changes nothing.
+```
+curl -X POST 'https://<your-app-url>/api/initialize'
+```
+
+Visiting that URL again is safe: a GET only reports status.
 
 ### Optional: fill it with a demo campus first
 
-An empty product is hard to judge. Add `&demo=light` and the same URL also
-inserts a small, realistic catalogue — 12 clubs, 12 projects, 40 events (some
-awaiting review), 68 people and their memberships and registrations:
+An empty product is hard to judge. `?demo=light` also inserts a small, realistic
+catalogue — 12 clubs, 12 projects, 40 events (some awaiting review), 68 people
+and their memberships and registrations:
 
 ```
-https://<your-app-url>/api/initialize?demo=light
+curl -X POST 'https://<your-app-url>/api/initialize?demo=light'
 ```
 
 It runs in about a second, in one transaction, and only on a database whose
-catalogue is still empty; a second call reports that it is already there. It can
-never create a super-admin, so `&email=` still works afterwards — do the demo
-first, then your account, or combine both in one URL. Remove the demo with
-`node scripts/db.mjs reset`, or leave it: demo people are on
+catalogue is still empty; a second call reports that it is already there. Demo
+content is refused in production unless `SETUP_TOKEN` is configured (it is
+content, and nobody should be able to seed *your* site), so either add the token
+for this one command or seed locally/in preview. It never creates a super-admin.
+
+Remove the demo with `node scripts/db.mjs reset`, or leave it: demo people are on
 `@students.example.edu`, which cannot sign in.
 
-### Optional: lock the setup URL
+### Optional: create the admin with a token instead
 
-The first visit is open only while **no super-admin exists**, then the route goes
-read-only — but you can require a secret from the start. Add one variable in
-Render:
+If you would rather name the account explicitly than rely on
+`INITIAL_ADMIN_EMAIL`, set `SETUP_TOKEN=<long random string>` (and leave
+`INITIAL_ADMIN_EMAIL` empty), then:
 
 ```
-SETUP_TOKEN=<any long random string>
+curl -X POST 'https://<your-app-url>/api/initialize?token=<that string>&email=you@university.edu'
 ```
 
-and open `…/api/initialize?token=<that string>&email=you@university.edu`.
-Without the token the route answers `401`. Use a password manager to generate
-it; `openssl rand -hex 24` works too.
+Without the token the route answers `401`. A GET is still read-only. Use a
+password manager to generate the value; `openssl rand -hex 24` works too.
+
+> If **neither** variable is set, a production deployment refuses every write
+> from this route (403) — that is deliberate: an open first-run URL is a
+> super-admin takeover waiting for a scanner.
 
 ---
 
@@ -177,7 +191,7 @@ contains the four-service topology for when you want them.
 | `redirect_uri_mismatch` | the callback URL in Google must match the deployed origin exactly (scheme, host, no trailing slash) |
 | Sign-in bounces back to `/login` | you are on an `http://` URL or a different host than the one the cookie was set for; use the canonical `https://` URL |
 | Upload says “did not reach storage” | image storage is not configured yet, or the CORS rule is missing (see *Images*) |
-| `/api/initialize` answers `403` | a super-admin already exists; append `?token=…` after setting `SETUP_TOKEN` if you really need to re-run it |
+| `/api/initialize` answers `403` | writes are locked: set `SETUP_TOKEN` (or `INITIAL_ADMIN_EMAIL`) in the environment, and remember the route only writes on a POST |
 
 The long-form production checklist — backups, worker, monitoring, rollback,
 security review — is [`DEPLOY_STEPS.md`](DEPLOY_STEPS.md). Keep it for the week

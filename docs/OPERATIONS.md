@@ -262,14 +262,33 @@ answered in `x-campussphere-served-by`, and a fallback also carries
 Writes are refused with `503` rather than half-implemented.
 
 The primary is only probed when `API_BASE_URL` is set. If it is, set the same
-`METRICS_TOKEN` on both services so the detailed endpoint is not publicly
-readable; the probe sends `Authorization: Bearer …`. The endpoint returns `401`
-otherwise, which the panel reports verbatim instead of pretending the service is
-down.
+`METRICS_TOKEN` on both services. The endpoint now **fails closed**: with no
+token configured it answers `401` to everyone, because it reports process
+memory, CPU, uptime, database latency and migration counts. Comparisons are
+constant-time. The panel reports the `401` verbatim instead of pretending the
+service is down — a metrics panel that shows nothing is telling you the token is
+missing.
 
 Nothing here stores history. The sparkline is the browser's own last 24 samples;
 the package's durable history remains the `api_metrics` table and the provider's
 dashboards.
+
+## Client addresses and rate limits
+
+Rate limits key on a client identifier, and session rows store a pseudonym of the
+address they were created from. Both come from `clientIpFromHeaders()`:
+
+- `x-forwarded-for` is **append-only**. A client can put anything at the front,
+  so the app reads the entry `TRUSTED_PROXY_HOPS` from the end (default `1`,
+  correct for Vercel, Render and a single nginx). Raise it only if you add
+  another proxy you control in front; lowering your guard to the first entry
+  lets one attacker rotate a header and bypass every IP limit.
+- Stored identifiers are HMAC-SHA-256 keyed with `IP_HASH_SECRET`, truncated.
+  Without a secret the app still works, but the value is a fixed-key hash and an
+  IPv4 address can be recovered by enumeration — set the secret in production.
+- The Rust API applies the same rule and falls back to the peer address when
+  there is no forwarded header, instead of putting every such client in one
+  shared "unknown" bucket.
 
 ## Credential rotation
 
@@ -278,6 +297,7 @@ dashboards.
 | `GOOGLE_CLIENT_SECRET` | create a new secret in Google Cloud, deploy both services with it, then delete the old one |
 | `DATABASE_URL` | create a new role/password in Neon, update environment for **every** service (web, fallback, worker, Rust), redeploy, remove the old role |
 | `RESEND_API_KEY` / SMTP | rotate at provider, update env, redeploy, confirm a test job |
+| `IP_HASH_SECRET` | rotate whenever you like: it only changes rate-limit buckets and stored session pseudonyms, both of which are disposable |
 
 Never commit any of these. `.env` and `.env.*.local` are git-ignored.
 

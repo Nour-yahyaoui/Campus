@@ -66,6 +66,19 @@ export function toAppError(error: unknown): AppError {
   if (pgCode === "23514") return badRequest("A value violates a data constraint.");
   if (pgCode === "22P02") return badRequest("A value has an invalid format.");
   if (pgCode === "57014") return unavailable("The database took too long to respond.");
+  // A burst on a popular event makes requests queue behind the row lock in
+  // `registerForEvent`. PostgreSQL then raises lock_not_available (55P03), a
+  // deadlock (40P01) or a serialization failure (40001); all three are
+  // "try again", not "something went wrong".
+  if (pgCode === "55P03" || pgCode === "40P01" || pgCode === "40001") {
+    return unavailable("The system is busy. Please try again in a moment.");
+  }
+  // node-postgres enforces `query_timeout` client-side and raises a plain Error
+  // with no SQLSTATE, so it would otherwise be reported as a 500.
+  const message = (error as { message?: string } | null)?.message ?? "";
+  if (!pgCode && /query read timeout|connection terminated due to connection timeout/i.test(message)) {
+    return unavailable("The database took too long to respond.");
+  }
   console.error("[error] unhandled", error);
   return new AppError("internal_error", "Something went wrong on our side.", 500);
 }

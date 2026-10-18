@@ -12,8 +12,14 @@
 #        GOOGLE_CLIENT_ID      from Google Cloud Console
 #        GOOGLE_CLIENT_SECRET  from Google Cloud Console
 #
-# Optional variables (add them in the dashboard when you need them):
-#   SETUP_TOKEN             makes /api/initialize require ?token=…
+# First-run setup — set at least one of these, or /api/initialize refuses to
+# write once the service is in production:
+#   INITIAL_ADMIN_EMAIL     recommended: the first verified Google sign-in with
+#                           this address becomes the first super-admin
+#   SETUP_TOKEN             lets /api/initialize create that account with a
+#                           ?token=… (writes are POST only)
+#
+# Other optional variables (add them in the dashboard when you need them):
 #   NEXT_PUBLIC_SITE_URL    only for a custom domain (otherwise the Render URL is used)
 #   AWS_* + STORAGE_BUCKET  enables image uploads (see docs/DEPLOY_STEPS.md Step 4b)
 #   EMAIL_* / RESEND_API_KEY / SMTP_URL   real email delivery
@@ -41,4 +47,9 @@ services:
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Fill one of these two. Leaving both blank is safe: setup stays locked.
+      - key: INITIAL_ADMIN_EMAIL
+        sync: false
+      - key: SETUP_TOKEN
         sync: false

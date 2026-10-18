@@ -44,26 +44,46 @@ export async function readDatabaseState(): Promise<DatabaseState> {
 }
 
 export type AccessDecision =
-  | { mode: "write"; reason: "token" | "first-run" }
-  | { mode: "read-only"; reason: "already-initialized" }
+  | { mode: "write"; reason: "token" | "first-run"; allowAdmin: boolean; allowDemo: boolean }
+  | { mode: "read-only"; reason: "already-initialized" | "needs-token" }
   | { mode: "denied"; status: 401 | 403; message: string };
 
 /**
- * `SETUP_TOKEN` is optional so the minimum configuration stays
- * `DATABASE_URL` + Google credentials. Without it the route may only *change* a
- * database that has no super-admin yet — the first-run window. After that it
- * reports status and writes nothing, even when the variable is unset.
+ * Who may change the database through `/api/initialize`.
+ *
+ * The route used to be writable by anyone whenever `SETUP_TOKEN` was unset and
+ * no super-admin existed — which is exactly the state a fresh deployment is in,
+ * and exactly the window a scanner finds. In production the rule is now:
+ *
+ * - a configured `SETUP_TOKEN` is required for any write, unless
+ * - `INITIAL_ADMIN_EMAIL` is configured, in which case the route may apply
+ *   migrations but can never create an account (the first admin comes from a
+ *   verified Google sign-in instead).
+ *
+ * Development and preview keep the old convenience, because there the operator
+ * *is* whoever can reach the machine.
  */
 export function decideAccess(input: {
   tokenConfigured: boolean;
   expectedToken: string;
   providedToken: string | null;
   state: DatabaseState;
+  isProduction?: boolean;
+  initialAdminConfigured?: boolean;
 }): AccessDecision {
-  const { tokenConfigured, expectedToken, providedToken, state } = input;
+  const {
+    tokenConfigured,
+    expectedToken,
+    providedToken,
+    state,
+    isProduction = false,
+    initialAdminConfigured = false,
+  } = input;
 
   if (tokenConfigured) {
-    if (tokenMatches(expectedToken, providedToken)) return { mode: "write", reason: "token" };
+    if (tokenMatches(expectedToken, providedToken)) {
+      return { mode: "write", reason: "token", allowAdmin: true, allowDemo: true };
+    }
     return {
       mode: "denied",
       status: 401,
@@ -71,8 +91,22 @@ export function decideAccess(input: {
     };
   }
 
-  if (state.superAdmins === 0) return { mode: "write", reason: "first-run" };
-  return { mode: "read-only", reason: "already-initialized" };
+  if (state.superAdmins > 0) return { mode: "read-only", reason: "already-initialized" };
+
+  if (!isProduction) return { mode: "write", reason: "first-run", allowAdmin: true, allowDemo: true };
+
+  if (initialAdminConfigured) {
+    // Migrations only: no account creation, no demo content.
+    return { mode: "write", reason: "first-run", allowAdmin: false, allowDemo: false };
+  }
+
+  return {
+    mode: "denied",
+    status: 403,
+    message:
+      "Setup writes are locked in production. Set SETUP_TOKEN and call this URL with ?token=…, " +
+      "or set INITIAL_ADMIN_EMAIL and sign in with that Google account to become the first super-admin.",
+  };
 }
 
 /** Escapes everything interpolated into the small HTML page below. */

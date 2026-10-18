@@ -5,6 +5,7 @@ export type { Me };
 import { SESSION_TTL_SECONDS, OAUTH_FLOW_TTL_SECONDS } from "@campussphere/contracts";
 import { getEnv, siteUrl } from "./env";
 import { isoRequired, one, query, stringArray, transaction } from "./db";
+import { hashIp } from "./privacy";
 import { AppError, badRequest, conflict, unauthorized } from "./errors";
 import { writeAudit } from "./audit";
 
@@ -74,7 +75,9 @@ export async function createSession(
 ): Promise<SessionResult> {
   const token = randomToken(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
-  const ipHash = meta.ip ? hashToken(meta.ip).slice(0, 32) : null;
+  // HMAC, not a bare hash: an unsalted SHA-256 of an IPv4 address is
+  // reversible by enumeration in minutes.
+  const ipHash = meta.ip ? hashIp(meta.ip) : null;
   await query(
     `insert into sessions (user_id, token_hash, expires_at, user_agent, ip_hash)
      values ($1, $2, $3, $4, $5)`,
@@ -206,13 +209,20 @@ async function upsertGoogleUser(profile: GoogleProfile): Promise<string> {
       if (byEmail.rows[0].google_sub) {
         throw conflict("This email is already linked to another Google account.");
       }
-      if (!byEmail.rows[0].email_verified && !profile.emailVerified) {
+      // Linking by email is how a bootstrapped admin (an email row with no
+      // Google identity yet) signs in for the first time. That is only safe
+      // when Google has *verified* the address: an unverified Google identity
+      // can claim an address it does not control, and unlinking the rule to
+      // "block only if both sides are unverified" let exactly that happen to
+      // an existing, privileged account. Callers also refuse unverified
+      // profiles up front; this is the second half of the same rule.
+      if (!profile.emailVerified) {
         throw conflict("Verify this email with Google before linking it.");
       }
       await client.query(
-        `update users set google_sub = $2, email_verified = $3, name = $4, avatar_url = $5
+        `update users set google_sub = $2, email_verified = true, name = $3, avatar_url = $4
           where id = $1`,
-        [byEmail.rows[0].id, profile.sub, profile.emailVerified, profile.name, profile.picture],
+        [byEmail.rows[0].id, profile.sub, profile.name, profile.picture],
       );
       return byEmail.rows[0].id;
     }
@@ -223,6 +233,42 @@ async function upsertGoogleUser(profile: GoogleProfile): Promise<string> {
       [profile.sub, profile.email, profile.emailVerified, profile.name, profile.picture],
     );
     return inserted.rows[0]!.id;
+  });
+}
+
+/**
+ * Zero-touch first admin (`INITIAL_ADMIN_EMAIL`).
+ *
+ * The alternative to a setup URL: the operator names the address once, and the
+ * first *verified* Google sign-in with exactly that address becomes the first
+ * super-admin. It fires only while the platform has no active super-admin at
+ * all, so the variable is inert for the rest of the deployment's life. The
+ * active-admin rows are locked, which is what stops two simultaneous sign-ins
+ * from both observing "no admin" and both claiming the role.
+ */
+export async function claimInitialAdmin(userId: string, email: string): Promise<boolean> {
+  const configured = getEnv().INITIAL_ADMIN_EMAIL;
+  if (!configured || configured.trim().toLowerCase() !== email.trim().toLowerCase()) return false;
+  return transaction(async (client) => {
+    const existing = await client.query("select id from users where 'super_admin' = any(roles) and status = 'active' for update");
+    if ((existing.rowCount ?? 0) > 0) return false;
+    const target = await client.query<{ roles: unknown }>("select roles from users where id = $1 for update", [
+      userId,
+    ]);
+    if (!target.rows[0]) return false;
+    const roles = Array.from(new Set([...stringArray(target.rows[0].roles), "super_admin"]));
+    await client.query("update users set roles = $2::global_role[] where id = $1", [userId, roles]);
+    await writeAudit(
+      {
+        actorId: userId,
+        action: "admin.bootstrap_initial_email",
+        entityType: "user",
+        entityId: userId,
+        metadata: { email: email.trim().toLowerCase() },
+      },
+      client,
+    );
+    return true;
   });
 }
 
@@ -329,6 +375,34 @@ export async function beginGoogleFlow(redirectTo = "/", origin?: string | null):
   return { url: `${GOOGLE_AUTH_URL}?${params.toString()}`, state, nonce, verifier, expiresAt };
 }
 
+/**
+ * Turns verified ID-token claims into the profile we are willing to act on.
+ *
+ * Kept as a pure function so the security decision — an unverified address is
+ * not an identity — has a test that does not need Google.
+ */
+export function googleProfileFromClaims(payload: Record<string, unknown>): GoogleProfile {
+  const email = typeof payload.email === "string" ? payload.email.toLowerCase() : null;
+  const sub = typeof payload.sub === "string" ? payload.sub : null;
+  if (!email || !sub) throw unauthorized("Google did not share an email address.");
+  if (payload.email_verified !== true) {
+    throw unauthorized(
+      "Google reports this email address as unverified. Verify it with Google, then try again.",
+    );
+  }
+  const name =
+    typeof payload.name === "string" && payload.name.trim()
+      ? payload.name.trim().slice(0, 120)
+      : email.split("@")[0]!;
+  return {
+    sub,
+    email,
+    emailVerified: true,
+    name,
+    picture: typeof payload.picture === "string" ? payload.picture : null,
+  };
+}
+
 export async function completeGoogleFlow(input: {
   code: string;
   state: string;
@@ -406,21 +480,12 @@ export async function completeGoogleFlow(input: {
   if (typeof payload.nonce !== "string" || hashToken(payload.nonce) !== stored.nonce_hash) {
     throw unauthorized("The Google identity token nonce does not match.");
   }
-  const email = typeof payload.email === "string" ? payload.email.toLowerCase() : null;
-  const sub = typeof payload.sub === "string" ? payload.sub : null;
-  if (!email || !sub) throw unauthorized("Google did not share an email address.");
+  const profile = googleProfileFromClaims(payload);
 
-  const userId = await upsertGoogleUser({
-    sub,
-    email,
-    emailVerified: payload.email_verified === true,
-    name:
-      typeof payload.name === "string" && payload.name.trim()
-        ? payload.name.trim().slice(0, 120)
-        : email.split("@")[0]!,
-    picture: typeof payload.picture === "string" ? payload.picture : null,
-  });
+  const userId = await upsertGoogleUser(profile);
 
+  // Before the session is created, so the first request already sees the role.
+  await claimInitialAdmin(userId, profile.email);
   const session = await createSession(userId, { userAgent: input.userAgent, ip: input.ip });
   await writeAudit({
     actorId: userId,
@@ -436,6 +501,31 @@ export async function completeGoogleFlow(input: {
 /* Development sign-in                                                 */
 /* ------------------------------------------------------------------ */
 
+/** Loopback and RFC1918 literals. A hostname (ngrok, trycloudflare) is not local. */
+export function isLocalHost(host: string | null | undefined): boolean {
+  if (!host) return false;
+  let bare = host.trim().toLowerCase();
+  if (bare.startsWith("[")) {
+    const end = bare.indexOf("]");
+    if (end > 0) bare = bare.slice(1, end);
+  } else {
+    const colon = bare.lastIndexOf(":");
+    if (colon > 0 && /^\d+$/.test(bare.slice(colon + 1))) bare = bare.slice(0, colon);
+  }
+  if (bare === "localhost" || bare.endsWith(".localhost")) return true;
+  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(bare);
+  if (ipv4) {
+    const octets = ipv4.slice(1).map(Number);
+    if (octets.some((part) => part > 255)) return false;
+    const [first, second] = octets;
+    if (first === 127 || first === 10) return true;
+    if (first === 192 && second === 168) return true;
+    if (first === 172 && second !== undefined && second >= 16 && second <= 31) return true;
+    return false;
+  }
+  return bare === "::1";
+}
+
 /**
  * Development-only identity. It exists so the app and tests are usable without
  * Google credentials. It is refused outright in production (see env.ts) and
@@ -446,10 +536,22 @@ export async function devSignIn(input: {
   name?: string;
   userAgent?: string | null;
   ip?: string | null;
+  /** Host the browser used, so a tunnelled dev server cannot masquerade as local. */
+  host?: string | null;
 }): Promise<SessionResult> {
   const env = getEnv();
   if (!env.devSignInEnabled) {
     throw new AppError("forbidden", "Development sign-in is disabled on this deployment.", 403);
+  }
+  // The production guard above is the primary control; this is the one that
+  // still holds when someone runs the app with NODE_ENV=development behind a
+  // public tunnel (ngrok, trycloudflare), where "anyone" can reach it.
+  if (!env.isTest && !isLocalHost(input.host)) {
+    throw new AppError(
+      "forbidden",
+      "Development sign-in is only available from localhost or a private network address.",
+      403,
+    );
   }
   const email = input.email.trim().toLowerCase();
   const existing = await one<UserRow>("select * from users where lower(email) = $1", [email]);

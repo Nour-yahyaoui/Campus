@@ -22,7 +22,9 @@ links to, written for operators and contributors rather than lawyers.
 | Outbound email records | delivery debugging | pruned after 30 days |
 
 No passwords, payment data, precise location, contacts, or device fingerprints
-are stored. IP addresses are hashed before storage and are never displayed.
+are stored. IP addresses are HMAC-ed with a server-side secret before storage
+(not a bare hash, which for IPv4 is reversible by enumeration) and are never
+displayed.
 
 **Uploaded images are stored in object storage, not in PostgreSQL.** Pages
 reference them as `/media/<id>`; the browser is then redirected to the bucket
@@ -56,15 +58,27 @@ Google Analytics, no pixel, and no session-replay tool.
 ## Export and deletion
 
 - **Export**: `/api/me/export` returns a JSON file containing the account,
-  memberships, project roles and applications, event registrations,
-  notifications, reports filed, and the person's own audit trail. Rate-limited
-  to three exports per hour and recorded in the audit log.
+  memberships, project roles and applications, event registrations, feedback,
+  authored announcements and project updates, assigned tasks, uploaded media,
+  session metadata (never token hashes), notifications, reports filed, and the
+  person's own audit trail. Rate-limited to three exports per hour and recorded
+  in the audit log.
 - **Deletion**: profile → "Request account deletion" anonymises the account
   immediately (`Former member`, invalidated email, cleared avatar/bio/Google
-  subject), revokes every session and writes an audit event. Contributions stay
-  attached to an anonymous author so club and project history remains coherent.
+  subject), ends club memberships, removes project/event organizer links, clears
+  elevated roles, deletes queued mail for the address, redacts delivery records,
+  revokes every session and writes an audit event. Contributions stay attached
+  to an anonymous author so club and project history remains coherent.
   Backups age out on the operator's retention schedule; this is stated rather
   than promising instant erasure from backups.
+- Deletion is **refused** while someone is the last active super-admin, the sole
+  president of an active club, the lead of a live project, or the only organizer
+  of an upcoming published event. The error names what to hand over first, so no
+  club or event is ever left with an account nobody can sign in as.
+- Audit events are append-only and are **not** rewritten on deletion: they record
+  what administrators did, and tampering with them would destroy the control. The
+  actor reference stays, but the account it points at no longer identifies a
+  person. Row retention is the audit retention period above.
 - Deletion of content itself (e.g. a specific post) is handled by moderators via
   reports, not by the automated account flow.
 

@@ -13,6 +13,7 @@ import {
   publishEvent,
   registerForEvent,
   submitFeedback,
+  updateEvent,
 } from "../src/services/events";
 
 const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
@@ -72,6 +73,74 @@ describe("events: capacity, waitlist and attendance", () => {
     // The remaining waitlist keeps its order.
     const waitlisted = await listRoster(event.id, await makeAdmin());
     expect(waitlisted.find((row) => row.user.id === third.id)?.status).toBe("waitlisted");
+  });
+
+  it("promotes the whole waitlist when capacity increases", async () => {
+    await resetDb();
+    const { event, organizer } = await publishedEvent(1);
+    const first = await makeUser({ name: "First" });
+    const second = await makeUser({ name: "Second" });
+    const third = await makeUser({ name: "Third" });
+    await registerForEvent(event.id, first);
+    await registerForEvent(event.id, second);
+    await registerForEvent(event.id, third);
+
+    await updateEvent(event.id, organizer, { capacity: 3 });
+
+    const roster = await listRoster(event.id, await makeAdmin());
+    expect(roster.filter((row) => row.status === "registered")).toHaveLength(3);
+    expect(roster.filter((row) => row.status === "waitlisted")).toHaveLength(0);
+
+    const notified = await query<{ n: number }>(
+      "select count(*)::int as n from notifications where kind = 'event_promoted'",
+    );
+    expect(notified.rows[0]!.n).toBe(2);
+    const queued = await query<{ n: number }>(
+      "select count(*)::int as n from jobs where payload->>'subject' like 'A place opened%'",
+    );
+    expect(queued.rows[0]!.n).toBe(2);
+  });
+
+  it("promotes everyone when capacity becomes unlimited", async () => {
+    await resetDb();
+    const { event, organizer } = await publishedEvent(1);
+    const first = await makeUser();
+    const second = await makeUser();
+    const third = await makeUser();
+    await registerForEvent(event.id, first);
+    await registerForEvent(event.id, second);
+    await registerForEvent(event.id, third);
+
+    await updateEvent(event.id, organizer, { capacity: null });
+
+    const roster = await listRoster(event.id, await makeAdmin());
+    expect(roster.filter((row) => row.status === "registered")).toHaveLength(3);
+  });
+
+  it("puts a newcomer behind an existing waitlist", async () => {
+    await resetDb();
+    const { event } = await publishedEvent(1);
+    const first = await makeUser();
+    const second = await makeUser();
+    const third = await makeUser();
+    await registerForEvent(event.id, first);
+    const queued = await registerForEvent(event.id, second);
+    expect(queued.status).toBe("waitlisted");
+
+    const late = await registerForEvent(event.id, third);
+    expect(late.status).toBe("waitlisted");
+    expect(late.position).toBe(2);
+  });
+
+  it("refuses to cancel an attendance record", async () => {
+    await resetDb();
+    const { event, organizer } = await publishedEvent(5);
+    const student = await makeUser({ name: "Attendee" });
+    await registerForEvent(event.id, student);
+    const roster = await listRoster(event.id, organizer);
+    const token = await createAttendanceToken(event.id, roster[0]!.registrationId, organizer);
+    await checkIn(token.code, organizer);
+    await expect(cancelRegistration(event.id, student)).rejects.toMatchObject({ code: "conflict" });
   });
 
   it("prevents duplicate active registrations", async () => {

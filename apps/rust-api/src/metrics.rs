@@ -131,19 +131,59 @@ pub fn cores() -> usize {
         .unwrap_or(1)
 }
 
-/// The detailed endpoint leaks process size and host load. When `METRICS_TOKEN`
-/// is configured, only a caller that presents it may read those numbers.
+/// The detailed endpoint leaks process size and host load, so it is refused
+/// unless `METRICS_TOKEN` is configured **and** presented.
+///
+/// This used to fail open: an unset variable meant "no protection needed",
+/// which is the wrong default for an endpoint that reports memory, CPU, uptime,
+/// database latency and migration counts to whoever asks.
 pub fn authorised(request: &HttpRequest) -> bool {
-    let expected = match std::env::var("METRICS_TOKEN") {
-        Ok(value) if !value.trim().is_empty() => value,
-        _ => return true,
-    };
+    let expected = std::env::var("METRICS_TOKEN").ok();
     let presented = request
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "));
-    matches!(presented, Some(token) if token.trim() == expected.trim())
+    authorised_with(expected.as_deref(), presented)
+}
+
+fn authorised_with(expected: Option<&str>, presented: Option<&str>) -> bool {
+    let expected = match expected.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => value,
+        None => return false,
+    };
+    match presented.map(str::trim) {
+        // Hashes both sides and compares them in constant time.
+        Some(token) => {
+            campussphere_security::verify_token(token, &campussphere_security::hash_token(expected))
+        }
+        None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::authorised_with;
+
+    #[test]
+    fn fails_closed_without_a_configured_token() {
+        assert!(!authorised_with(None, Some("anything")));
+        assert!(!authorised_with(Some(""), Some("")));
+        assert!(!authorised_with(Some("   "), Some("   ")));
+    }
+
+    #[test]
+    fn rejects_a_wrong_or_missing_token() {
+        assert!(!authorised_with(Some("right"), Some("wrong")));
+        assert!(!authorised_with(Some("right"), None));
+        assert!(!authorised_with(Some("right"), Some("")));
+    }
+
+    #[test]
+    fn accepts_the_configured_token() {
+        assert!(authorised_with(Some("right"), Some("right")));
+        assert!(authorised_with(Some(" right "), Some("right")));
+    }
 }
 
 /// Builds the document served at `/health/metrics`. `database` is assembled by

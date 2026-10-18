@@ -14,10 +14,38 @@ describe("setup access control", () => {
     expect(tokenMatches("", "")).toBe(false);
   });
 
-  it("allows first-run changes only while no super-admin exists", () => {
+  it("allows first-run changes in development while no super-admin exists", () => {
     expect(
       decideAccess({ tokenConfigured: false, expectedToken: "", providedToken: null, state: empty }),
-    ).toEqual({ mode: "write", reason: "first-run" });
+    ).toEqual({ mode: "write", reason: "first-run", allowAdmin: true, allowDemo: true });
+  });
+
+  it("locks first-run writes in production when nothing else is configured", () => {
+    const decision = decideAccess({
+      tokenConfigured: false,
+      expectedToken: "",
+      providedToken: null,
+      state: empty,
+      isProduction: true,
+    });
+    expect(decision.mode).toBe("denied");
+    if (decision.mode === "denied") {
+      expect(decision.status).toBe(403);
+      expect(decision.message).toMatch(/SETUP_TOKEN|INITIAL_ADMIN_EMAIL/);
+    }
+  });
+
+  it("allows migrations but never account creation when INITIAL_ADMIN_EMAIL is set", () => {
+    expect(
+      decideAccess({
+        tokenConfigured: false,
+        expectedToken: "",
+        providedToken: null,
+        state: empty,
+        isProduction: true,
+        initialAdminConfigured: true,
+      }),
+    ).toEqual({ mode: "write", reason: "first-run", allowAdmin: false, allowDemo: false });
   });
 
   it("becomes read-only, not writable, once an admin exists and no token is configured", () => {
@@ -39,15 +67,16 @@ describe("setup access control", () => {
     }
   });
 
-  it("allows a correct token to re-run setup on an initialised database", () => {
+  it("allows a correct token to re-run setup on an initialised database, even in production", () => {
     expect(
       decideAccess({
         tokenConfigured: true,
         expectedToken: "s3cret-setup-token",
         providedToken: "s3cret-setup-token",
         state: initialized,
+        isProduction: true,
       }),
-    ).toEqual({ mode: "write", reason: "token" });
+    ).toEqual({ mode: "write", reason: "token", allowAdmin: true, allowDemo: true });
   });
 
   it("treats the first-run window as closed as soon as any super-admin exists", () => {

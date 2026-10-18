@@ -80,14 +80,16 @@ async function fromPrimary(request: Request, base: URL, path: string): Promise<R
   const target = new URL(`/api/v1/${path}`, base);
   target.search = new URL(request.url).search;
 
-  // `/me` is session-scoped: the Rust service reads the same `cs_session`
-  // cookie, so it must travel with the request or every signed-in caller
-  // would be told to sign in.
+  // Credentials travel only to `/me`. The other upstream paths are public
+  // reads; sending the session cookie on every list request hands it to a
+  // second service for no reason.
   const headers: Record<string, string> = { accept: "application/json" };
-  const cookie = request.headers.get("cookie");
-  if (cookie) headers.cookie = cookie;
-  const authorization = request.headers.get("authorization");
-  if (authorization) headers.authorization = authorization;
+  if (path === "me") {
+    const cookie = request.headers.get("cookie");
+    if (cookie) headers.cookie = cookie;
+    const authorization = request.headers.get("authorization");
+    if (authorization) headers.authorization = authorization;
+  }
 
   try {
     const response = await fetch(target, {

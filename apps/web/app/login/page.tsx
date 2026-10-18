@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/config";
 import { currentUser, safeNext } from "@/lib/session";
 import { devSignInAction } from "@/app/actions/auth";
 import { Notice } from "@/components/Pieces";
+import { authErrorMessage } from "@/lib/auth-messages";
 import { SubmitButton } from "@/components/SubmitButton";
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default async function LoginPage({
   const next = safeNext(params.next);
   if (me) redirect(next);
   const options = authOptions();
+  const errorMessage = authErrorMessage(params.error);
 
   return (
     <div className="shell" style={{ maxWidth: 560, paddingTop: 48 }}>
@@ -35,7 +37,7 @@ export default async function LoginPage({
         events and post under your own name.
       </p>
 
-      {params.error ? <Notice tone="danger">{params.error}</Notice> : null}
+      {errorMessage ? <Notice tone="danger">{errorMessage}</Notice> : null}
 
       <div className="card mt-2">
         <h2 style={{ fontSize: "1.25rem" }}>Continue with Google</h2>

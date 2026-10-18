@@ -7,6 +7,7 @@ import type {
   Paginated,
   RegistrationStatus,
 } from "@campussphere/contracts";
+import type pg from "pg";
 import type { z } from "zod";
 import type { eventProposalInput, eventUpdateInput } from "@campussphere/contracts";
 import { randomToken, hashToken, isSuperAdmin, type Me } from "../auth";
@@ -319,8 +320,12 @@ export async function createEvent(me: Me, input: ProposalInput): Promise<{ id: s
 }
 
 export async function updateEvent(eventId: string, me: Me, patch: EventPatch): Promise<void> {
-  const event = await requireEventManager(eventId, me);
-  if (["cancelled", "completed"].includes(event.status)) throw conflict("This event can no longer be edited.");
+  // Permission first (a read), then one transaction that locks the event row.
+  // The capacity check used to run outside any lock, so a registration landing
+  // between the count and the update could leave capacity below the number of
+  // confirmed seats.
+  await requireEventManager(eventId, me);
+  if (patch.clubId !== undefined) await assertClubAffiliation(patch.clubId, me);
   const submit = patch.submit === true;
 
   const columns: Record<string, string> = {
@@ -341,7 +346,6 @@ export async function updateEvent(eventId: string, me: Me, patch: EventPatch): P
     clubId: "club_id",
     coverUrl: "cover_url",
   };
-  if (patch.clubId !== undefined) await assertClubAffiliation(patch.clubId, me);
 
   const sets: string[] = [];
   const values: unknown[] = [];
@@ -352,37 +356,72 @@ export async function updateEvent(eventId: string, me: Me, patch: EventPatch): P
     }
   }
 
-  if (patch.capacity !== undefined && patch.capacity !== null) {
-    const active = await one<{ n: number }>(
-      "select count(*)::int as n from event_registrations where event_id = $1 and status in ('registered','attended')",
+  const touchesCapacity = "capacity" in patch || "waitlistEnabled" in patch;
+
+  await transaction(async (client) => {
+    const locked = await client.query<{ capacity: number | null; status: string }>(
+      "select capacity, status from events where id = $1 for update",
       [eventId],
     );
-    if ((active?.n ?? 0) > patch.capacity) {
-      throw conflict(`Capacity cannot be lower than the ${active!.n} people already registered.`);
+    const current = locked.rows[0];
+    if (!current) throw notFound("Event not found");
+    if (["cancelled", "completed"].includes(current.status)) {
+      throw conflict("This event can no longer be edited.");
     }
-  }
 
-  if (sets.length > 0) {
-    values.push(eventId);
-    await query(`update events set ${sets.join(", ")} where id = $${values.length}`, values);
-  }
-  if (submit) {
-    if (!["draft", "changes_requested", "rejected"].includes(event.status)) {
-      throw conflict("Only drafts or changes-requested events can be submitted.");
+    if (patch.capacity !== undefined && patch.capacity !== null) {
+      const active = await client.query<{ n: number }>(
+        "select count(*)::int as n from event_registrations where event_id = $1 and status in ('registered','attended')",
+        [eventId],
+      );
+      if ((active.rows[0]?.n ?? 0) > patch.capacity) {
+        throw conflict(`Capacity cannot be lower than the ${active.rows[0]!.n} people already registered.`);
+      }
     }
-    await query("update events set status = 'submitted', submitted_at = now(), decision_notes = null where id = $1", [
-      eventId,
-    ]);
-    await writeAudit({ actorId: me.id, action: "event.submitted", entityType: "event", entityId: eventId });
-  } else if (sets.length > 0) {
-    await writeAudit({
-      actorId: me.id,
-      action: "event.updated",
-      entityType: "event",
-      entityId: eventId,
-      metadata: { fields: Object.keys(patch) },
-    });
-  }
+
+    if (sets.length > 0) {
+      await client.query(`update events set ${sets.join(", ")} where id = $${values.length + 1}`, [
+        ...values,
+        eventId,
+      ]);
+    }
+
+    // Raising capacity (or removing it, or re-opening the waitlist) can free
+    // seats that earlier waitlisted people should get first — otherwise the
+    // queue only ever moves when somebody cancels.
+    if (touchesCapacity) {
+      const fresh = await client.query<{ id: string; title: string; slug: string; capacity: number | null }>(
+        "select id, title, slug, capacity from events where id = $1",
+        [eventId],
+      );
+      if (fresh.rows[0]) await promoteWaitlist(client, fresh.rows[0], me.id);
+    }
+
+    if (submit) {
+      if (!["draft", "changes_requested", "rejected"].includes(current.status)) {
+        throw conflict("Only drafts or changes-requested events can be submitted.");
+      }
+      await client.query(
+        "update events set status = 'submitted', submitted_at = now(), decision_notes = null where id = $1",
+        [eventId],
+      );
+      await writeAudit(
+        { actorId: me.id, action: "event.submitted", entityType: "event", entityId: eventId },
+        client,
+      );
+    } else if (sets.length > 0) {
+      await writeAudit(
+        {
+          actorId: me.id,
+          action: "event.updated",
+          entityType: "event",
+          entityId: eventId,
+          metadata: { fields: Object.keys(patch) },
+        },
+        client,
+      );
+    }
+  });
 }
 
 export async function decideEvent(
@@ -502,11 +541,89 @@ export async function cancelEvent(eventId: string, me: Me, reason: string): Prom
 /* Registration & waitlist                                             */
 /* ------------------------------------------------------------------ */
 
+interface WaitlistEvent {
+  id: string;
+  title: string;
+  slug: string;
+  capacity: number | null;
+}
+
+/**
+ * Moves people off the waitlist, in queue order, while seats are free.
+ *
+ * The caller must already hold the event row lock (`select … for update`), so
+ * a concurrent registration cannot take a seat between the count and the
+ * promotion. `skip locked` keeps two simultaneous cancellations from promoting
+ * the same person twice.
+ */
+async function promoteWaitlist(
+  client: pg.PoolClient,
+  event: WaitlistEvent,
+  actorId: string | null,
+): Promise<number> {
+  const confirmed = await client.query<{ n: number }>(
+    `select count(*)::int as n from event_registrations
+      where event_id = $1 and status in ('registered','attended')`,
+    [event.id],
+  );
+  const taken = confirmed.rows[0]?.n ?? 0;
+  // Unlimited capacity promotes the whole (bounded) queue.
+  const free = event.capacity === null ? 500 : Math.max(0, event.capacity - taken);
+  if (free === 0) return 0;
+
+  const queue = await client.query<{ id: string; user_id: string; email: string; name: string }>(
+    `select r.id, r.user_id, u.email, u.name
+       from event_registrations r join users u on u.id = r.user_id
+      where r.event_id = $1 and r.status = 'waitlisted'
+      order by r.position asc nulls last, r.created_at asc
+      limit $2
+      for update of r skip locked`,
+    [event.id, free],
+  );
+
+  for (const person of queue.rows) {
+    await client.query(
+      `update event_registrations
+          set status = 'registered', promoted_from_waitlist_at = now(), position = null
+        where id = $1`,
+      [person.id],
+    );
+    await client.query(
+      `insert into notifications (user_id, kind, title, body, link)
+       values ($1, 'event_promoted', $2, $3, $4)`,
+      [
+        person.user_id,
+        `A place opened for ${event.title}`,
+        "You were moved from the waitlist. Your spot is confirmed.",
+        `/events/${event.slug}`,
+      ],
+    );
+    await client.query(`insert into jobs (kind, payload, max_attempts) values ('email', $1, 6)`, [
+      JSON.stringify({
+        to: person.email,
+        subject: `A place opened for ${event.title}`,
+        text: `Hi ${person.name},\n\nYou were promoted from the waitlist for ${event.title}.\nDetails: ${siteUrl()}/events/${event.slug}`,
+      }),
+    ]);
+    await writeAudit(
+      {
+        actorId,
+        action: "event.registration_promoted",
+        entityType: "event",
+        entityId: event.id,
+        metadata: { promotedUserId: person.user_id },
+      },
+      client,
+    );
+  }
+  return queue.rows.length;
+}
+
 export async function registerForEvent(
   eventId: string,
   me: Me,
 ): Promise<EventRegistrationView> {
-  const { registration, event } = await transaction(async (client) => {
+  return transaction(async (client) => {
     // Serialise all registration decisions for this event. This lock is the
     // guarantee that capacity is never oversubscribed under concurrency.
     const locked = await client.query<{
@@ -535,14 +652,11 @@ export async function registerForEvent(
     );
     if (existing.rows[0]) {
       return {
-        event: eventRow,
-        registration: {
-          id: existing.rows[0].id,
-          status: existing.rows[0].status,
-          createdAt: isoRequired(existing.rows[0].created_at),
-          position: existing.rows[0].position,
-        } satisfies EventRegistrationView,
-      };
+        id: existing.rows[0].id,
+        status: existing.rows[0].status,
+        createdAt: isoRequired(existing.rows[0].created_at),
+        position: existing.rows[0].position,
+      } satisfies EventRegistrationView;
     }
 
     const count = await client.query<{ n: number }>(
@@ -551,7 +665,15 @@ export async function registerForEvent(
       [eventId],
     );
     const confirmed = count.rows[0]?.n ?? 0;
-    const hasSpace = eventRow.capacity === null || confirmed < eventRow.capacity;
+    const waiting = await client.query<{ n: number }>(
+      "select count(*)::int as n from event_registrations where event_id = $1 and status = 'waitlisted'",
+      [eventId],
+    );
+    const queued = waiting.rows[0]?.n ?? 0;
+    const seatFree = eventRow.capacity === null || confirmed < eventRow.capacity;
+    // A free seat is not this person's if somebody is already queued for it.
+    // Without this check, raising capacity let newcomers jump the waitlist.
+    const hasSpace = seatFree && queued === 0;
 
     if (!hasSpace && !eventRow.waitlist_enabled) {
       throw conflict("This event is full.");
@@ -593,34 +715,45 @@ export async function registerForEvent(
       },
       client,
     );
-    return {
-      event: eventRow,
-      registration: {
-        id: inserted.rows[0]!.id,
-        status,
-        createdAt: isoRequired(inserted.rows[0]!.created_at),
-        position,
-      } satisfies EventRegistrationView,
-    };
-  });
 
-  const email = await one<{ email: string; name: string }>("select email, name from users where id = $1", [me.id]);
-  if (email) {
-    if (registration.status === "registered") {
-      await enqueueEmail(
-        email.email,
-        `You're registered for ${event.title}`,
-        `Hi ${email.name},\n\nYour place at ${event.title} is confirmed.\nDetails: ${siteUrl()}/events/${event.slug}`,
+    // Inside the transaction on purpose: an email-queue hiccup used to be
+    // reported to the user as "registration failed" even though the seat had
+    // already been committed.
+    if (status === "registered") {
+      const email = await client.query<{ email: string; name: string }>(
+        "select email, name from users where id = $1",
+        [me.id],
       );
+      if (email.rows[0]) {
+        await client.query(`insert into jobs (kind, payload, max_attempts) values ('email', $1, 6)`, [
+          JSON.stringify({
+            to: email.rows[0].email,
+            subject: `You're registered for ${eventRow.title}`,
+            text: `Hi ${email.rows[0].name},\n\nYour place at ${eventRow.title} is confirmed.\nDetails: ${siteUrl()}/events/${eventRow.slug}`,
+          }),
+        ]);
+      }
     }
-  }
-  return registration;
+
+    return {
+      id: inserted.rows[0]!.id,
+      status,
+      createdAt: isoRequired(inserted.rows[0]!.created_at),
+      position,
+    } satisfies EventRegistrationView;
+  });
 }
 
 export async function cancelRegistration(eventId: string, me: Me): Promise<void> {
   await transaction(async (client) => {
-    const event = await client.query<{ id: string; title: string; slug: string; waitlist_enabled: boolean }>(
-      "select id, title, slug, waitlist_enabled from events where id = $1 for update",
+    const event = await client.query<{
+      id: string;
+      title: string;
+      slug: string;
+      capacity: number | null;
+      waitlist_enabled: boolean;
+    }>(
+      "select id, title, slug, capacity, waitlist_enabled from events where id = $1 for update",
       [eventId],
     );
     if (!event.rows[0]) throw notFound("Event not found");
@@ -633,6 +766,13 @@ export async function cancelRegistration(eventId: string, me: Me): Promise<void>
     );
     const cancelled = current.rows[0];
     if (!cancelled) throw notFound("You are not registered for this event.");
+    // Attendance is a record, not a reservation: cancelling it would free a
+    // seat the person already used and promote someone into an event that has
+    // happened. Organizers can adjust the roster explicitly.
+    if (cancelled.status === "attended") {
+      throw conflict("Your attendance is already recorded. Ask an organizer to remove it.");
+    }
+
     await client.query(
       "update event_registrations set status = 'cancelled', cancelled_at = now() where id = $1",
       [cancelled.id],
@@ -650,63 +790,9 @@ export async function cancelRegistration(eventId: string, me: Me): Promise<void>
     );
 
     // A freed seat promotes the first person on the waitlist, atomically.
-    const wasConfirmed = cancelled.status === "registered" || cancelled.status === "attended";
+    const wasConfirmed = cancelled.status === "registered";
     if (!wasConfirmed) return;
-
-    const next = await client.query<{ id: string; user_id: string }>(
-      `select id, user_id from event_registrations
-        where event_id = $1 and status = 'waitlisted'
-        order by position asc nulls last, created_at asc
-        limit 1
-        for update skip locked`,
-      [eventId],
-    );
-    const promoted = next.rows[0];
-    if (!promoted) return;
-
-    await client.query(
-      `update event_registrations
-          set status = 'registered', promoted_from_waitlist_at = now(), position = null
-        where id = $1`,
-      [promoted.id],
-    );
-    await client.query(
-      `insert into notifications (user_id, kind, title, body, link)
-       values ($1, 'event_promoted', $2, $3, $4)`,
-      [
-        promoted.user_id,
-        `A place opened for ${event.rows[0].title}`,
-        "You were moved from the waitlist. Your spot is confirmed.",
-        `/events/${event.rows[0].slug}`,
-      ],
-    );
-    await writeAudit(
-      {
-        actorId: me.id,
-        action: "event.registration_promoted",
-        entityType: "event",
-        entityId: eventId,
-        metadata: { promotedUserId: promoted.user_id },
-      },
-      client,
-    );
-
-    const promotedUser = await client.query<{ email: string; name: string }>(
-      "select email, name from users where id = $1",
-      [promoted.user_id],
-    );
-    if (promotedUser.rows[0]) {
-      await client.query(
-        `insert into jobs (kind, payload) values ('email', $1)`,
-        [
-          JSON.stringify({
-            to: promotedUser.rows[0].email,
-            subject: `A place opened for ${event.rows[0].title}`,
-            text: `Hi ${promotedUser.rows[0].name},\n\nYou were promoted from the waitlist for ${event.rows[0].title}.\nDetails: ${siteUrl()}/events/${event.rows[0].slug}`,
-          }),
-        ],
-      );
-    }
+    await promoteWaitlist(client, event.rows[0], me.id);
   });
 }
 
@@ -813,14 +899,16 @@ export async function checkIn(code: string, me: Me): Promise<{ attendeeName: str
     expires_at: Date;
     used_at: Date | null;
     event_id: string;
+    event_status: string;
     user_id: string;
     attendee_name: string;
     status: RegistrationStatus;
   }>(
     `select t.id as token_id, t.registration_id, t.expires_at, t.used_at,
-            r.event_id, r.user_id, u.name as attendee_name, r.status
+            r.event_id, e.status as event_status, r.user_id, u.name as attendee_name, r.status
        from attendance_tokens t
        join event_registrations r on r.id = t.registration_id
+       join events e on e.id = r.event_id
        join users u on u.id = r.user_id
       where t.token_hash = $1`,
     [hashToken(code)],
@@ -829,6 +917,11 @@ export async function checkIn(code: string, me: Me): Promise<{ attendeeName: str
   if (row.used_at) throw conflict("This check-in code was already used.");
   if (row.expires_at.getTime() < Date.now()) throw conflict("This check-in code expired.");
   if (!["registered", "attended"].includes(row.status)) throw conflict("This attendee is not confirmed.");
+  // A cancelled or unpublished event must not accumulate attendance records
+  // just because a code minted earlier is still inside its two-hour window.
+  if (!["published", "completed"].includes(row.event_status)) {
+    throw conflict("Check-in is closed for this event.");
+  }
 
   const allowed = await canManageEvent(row.event_id, me);
   if (!allowed) throw forbidden("Only the event organizers can check people in.");

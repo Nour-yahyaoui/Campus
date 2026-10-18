@@ -133,6 +133,7 @@ export async function transaction<T>(
   options: { statementTimeoutMs?: number } = {},
 ): Promise<T> {
   const client = await getPool().connect();
+  let broken = false;
   try {
     await client.query("begin");
     // SET LOCAL works on a direct connection and through a transaction-mode
@@ -145,10 +146,14 @@ export async function transaction<T>(
     await client.query("commit");
     return result;
   } catch (error) {
-    await client.query("rollback").catch(() => {});
+    // If the rollback itself fails the connection is in an unknown state.
+    // Returning it to the pool would hand a broken client to the next request.
+    await client.query("rollback").catch(() => {
+      broken = true;
+    });
     throw error;
   } finally {
-    client.release();
+    client.release(broken);
   }
 }
 

@@ -9,7 +9,10 @@ import {
   consumeSignInTicket,
   issueSignInTicket,
   findMeById,
+  googleProfileFromClaims,
   googleRedirectUri,
+  claimInitialAdmin,
+  isLocalHost,
 } from "../src/auth";
 import { query } from "../src/db";
 import { getEnv, resetEnvCache } from "../src/env";
@@ -63,6 +66,54 @@ describe("sessions and identity", () => {
     const session = await devSignIn({ email: freshEmail() });
     await query("update users set status = 'suspended' where id = $1", [session.user.id]);
     expect(await resolveSession(session.token)).toBeNull();
+  });
+
+  it("refuses an unverified Google address before any profile is built", () => {
+    expect(() =>
+      googleProfileFromClaims({ sub: "1", email: "admin@uni.tn", email_verified: false }),
+    ).toThrow(/unverified/i);
+    // Missing is not the same as true.
+    expect(() => googleProfileFromClaims({ sub: "1", email: "admin@uni.tn" })).toThrow(/unverified/i);
+    expect(() => googleProfileFromClaims({ sub: "1", email_verified: true })).toThrow(/email address/i);
+
+    const profile = googleProfileFromClaims({
+      sub: "1",
+      email: "ADMIN@uni.tn",
+      email_verified: true,
+      name: "Owner",
+    });
+    expect(profile).toMatchObject({ sub: "1", email: "admin@uni.tn", emailVerified: true });
+  });
+
+  it("grants super_admin once to INITIAL_ADMIN_EMAIL and then stops", async () => {
+    await resetDb();
+    const email = freshEmail("owner");
+    const signedIn = await devSignIn({ email });
+    process.env.INITIAL_ADMIN_EMAIL = email;
+    resetEnvCache();
+    try {
+      expect(await claimInitialAdmin(signedIn.user.id, email)).toBe(true);
+      expect((await findMeById(signedIn.user.id))?.roles).toContain("super_admin");
+      // A second claim must be inert: the platform already has an admin.
+      expect(await claimInitialAdmin(signedIn.user.id, email)).toBe(false);
+      const audit = await query<{ n: number }>(
+        "select count(*)::int as n from audit_events where action = 'admin.bootstrap_initial_email'",
+      );
+      expect(audit.rows[0]!.n).toBe(1);
+    } finally {
+      delete process.env.INITIAL_ADMIN_EMAIL;
+      resetEnvCache();
+    }
+  });
+
+  it("only treats a loopback or private-network host as local", () => {
+    for (const host of ["localhost:3000", "127.0.0.1:3000", "[::1]:3000", "192.168.1.4", "10.0.0.2", "172.20.3.4"]) {
+      expect(isLocalHost(host)).toBe(true);
+    }
+    // A tunnel is a public hostname, even though the server is on this laptop.
+    for (const host of ["abc123.ngrok-free.app", "foo.trycloudflare.com", "campus.example.edu", "", null, undefined]) {
+      expect(isLocalHost(host)).toBe(false);
+    }
   });
 
   it("cannot enable development sign-in in production", () => {

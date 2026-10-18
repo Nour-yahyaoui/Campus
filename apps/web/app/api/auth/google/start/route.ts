@@ -35,11 +35,8 @@ export async function GET(request: Request) {
       return response;
     } catch (error) {
       if (!isAppError(error)) console.error("[auth] google start failed", error);
-      const message = isAppError(error)
-        ? error.message
-        : "Google sign-in is unavailable right now.";
       const target = absoluteUrl("/login", request);
-      target.searchParams.set("error", message);
+      target.searchParams.set("error", "oauth_failed");
       return NextResponse.redirect(target);
     }
   });

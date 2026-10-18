@@ -1,10 +1,11 @@
 # Deploy CampusSphere, step by step (full checklist)
 
 > **Just want it live?** Follow [`DEPLOY_QUICK.md`](DEPLOY_QUICK.md): one Render
-> service, three environment variables, and `/api/initialize` creates the
-> database schema and your super-admin. This longer runbook is the production
-> checklist — worker, fallback API, backups, monitoring, rollback — for the week
-> you invite real users.
+> service, three environment variables, `INITIAL_ADMIN_EMAIL`, and a POST to
+> `/api/initialize` creates the schema before your first Google sign-in makes
+> you super-admin. This longer runbook is the production checklist — worker,
+> fallback API, backups, monitoring, rollback — for the week you invite real
+> users.
 
 This is the ordered runbook for putting the build online. It assumes the
 repository you are reading, a Neon account, a Render account and a Google Cloud
@@ -24,8 +25,8 @@ verified in this workspace are labelled ✅; the rest is procedure.
 | `campussphere-rust-api` | Rust + Actix | optional | read-only JSON API (`/api/v1/...`). CI builds, formats, lints and tests it, and builds the image on every push. The Next.js app does not call it; deploy it only if you want the Rust service. |
 
 **Simplest setup:** one Render web service plus Neon — see
-[`DEPLOY_QUICK.md`](DEPLOY_QUICK.md). Three environment variables, and
-`/api/initialize` creates the schema.
+[`DEPLOY_QUICK.md`](DEPLOY_QUICK.md). Three environment variables plus
+`INITIAL_ADMIN_EMAIL`, and a POST to `/api/initialize` creates the schema.
 **Cheapest sane setup with jobs:** that service, plus the worker (Render plans
 without background workers cannot run it). The fallback API and the Rust API can
 wait until you need them.
@@ -80,9 +81,11 @@ prints one row.
 
 ## Step 2 — apply migrations from your machine (optional)
 
-> The app can do this itself: opening `/api/initialize` (Step 3) applies every
-> migration with the same ledger and checksums as this command. Use the CLI only
-> if you prefer to see the output, or need to migrate before the first deploy.
+> The app can do this itself: opening `/api/initialize` (Step 3) shows a status
+> page with a **Run setup** button, and submitting it (a POST) applies every
+> migration with the same ledger and checksums as this command. A GET never
+> writes. Use the CLI only if you prefer to see the output, or need to migrate
+> before the first deploy.
 
 
 Run these locally against the **direct** URL. The inline variable wins over
@@ -112,8 +115,11 @@ this workspace against PostgreSQL 16. Neon runs 16/17, which is compatible.
 
 ## Step 3 — create the first super-admin
 
-> Also optional: `/api/initialize?email=you@university.edu` creates the account
-> with the same function this script calls. The CLI remains useful for automation.
+> Also optional: with `SETUP_TOKEN` set, a POST to
+> `/api/initialize?token=…&email=you@university.edu` creates the account with the
+> same function this script calls. Without a token, the zero-touch equivalent is
+> `INITIAL_ADMIN_EMAIL`: the first verified Google sign-in with that address
+> becomes super-admin. The CLI remains useful for automation.
 
 
 Do this before anyone signs in, so the first account is the owner, not a

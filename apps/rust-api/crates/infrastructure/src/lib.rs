@@ -88,11 +88,23 @@ pub struct ClubListQuery<'a> {
     pub cursor: Option<(DateTime<Utc>, Uuid)>,
 }
 
+/// Mirrors the TypeScript `likePattern`: escape the escape character first,
+/// then both wildcards. Escaping only `%` made `_` (a single-character
+/// wildcard) behave differently between the Rust and Next.js APIs for the same
+/// search string.
+fn like_pattern(value: &str) -> String {
+    let escaped = value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_");
+    format!("%{}%", escaped)
+}
+
 pub async fn list_clubs(pool: &PgPool, query: ClubListQuery<'_>) -> StoreResult<Vec<PgRow>> {
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| format!("%{}%", value.replace('%', "\\%")));
+        .map(|value| like_pattern(value));
     let rows = sqlx::query(
         r#"
         select c.id, c.slug, c.name, c.tagline, c.category::text as category,
@@ -135,7 +147,7 @@ pub async fn list_events(pool: &PgPool, query: EventListQuery<'_>) -> StoreResul
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| format!("%{}%", value.replace('%', "\\%")));
+        .map(|value| like_pattern(value));
     let rows = sqlx::query(
         r#"
         select e.id, e.slug, e.title, e.summary, e.category::text as category, e.status::text as status,
@@ -180,7 +192,7 @@ pub async fn list_projects(pool: &PgPool, query: ProjectListQuery<'_>) -> StoreR
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
     let pattern = query
         .search
-        .map(|value| format!("%{}%", value.replace('%', "\\%")));
+        .map(|value| like_pattern(value));
     let rows = sqlx::query(
         r#"
         select p.id, p.slug, p.title, p.summary, p.category::text as category, p.status::text as status,
@@ -267,4 +279,20 @@ pub async fn migrations_applied(pool: &PgPool) -> StoreResult<i64> {
         .fetch_one(pool)
         .await?;
     Ok(row.try_get::<i64, _>("count").unwrap_or(0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::like_pattern;
+
+    /// The exact escaping the TypeScript service layer uses. A shared vector
+    /// keeps the two APIs returning the same results for the same query.
+    #[test]
+    fn like_pattern_escapes_every_wildcard_and_the_escape_itself() {
+        assert_eq!(like_pattern("clubs"), "%clubs%");
+        assert_eq!(like_pattern("100%"), "%100\\%%");
+        assert_eq!(like_pattern("a_b"), "%a\\_b%");
+        assert_eq!(like_pattern("c:\\temp"), "%c:\\\\temp%");
+        assert_eq!(like_pattern("\\%_"), "%\\\\\\%\\_%");
+    }
 }

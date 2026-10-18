@@ -143,36 +143,56 @@ export async function listUsers(me: Me, options: { q?: string; limit?: number; o
 
 export async function setUserRoles(me: Me, userId: string, roles: GlobalRole[]): Promise<void> {
   await requireSuperAdmin(me);
-  const target = await one<{ id: string; roles: unknown; name: string }>(
-    "select id, roles, name from users where id = $1",
-    [userId],
-  );
-  if (!target) throw notFound("User not found");
   if (userId === me.id) throw conflict("You cannot change your own roles; ask another super-admin.");
-  // `roles` is a Postgres enum array and arrives as `{student,super_admin}`,
-  // not a JavaScript array; stringArray exists for exactly this reason.
-  const beforeRoles = stringArray(target.roles);
-  const unique = [...new Set(roles)];
-  if (unique.length === 0) throw badRequest("Every user needs at least the student role.");
-  if (unique.includes("super_admin")) {
-    const admins = await one<{ n: number }>(
-      "select count(*)::int as n from users where 'super_admin' = any(roles) and status = 'active'",
+  const next = [...new Set(roles)];
+  if (next.length === 0) throw badRequest("Every user needs at least the student role.");
+
+  const removedSuperAdmin = await transaction(async (client) => {
+    // Lock every active super-admin row, not just the target: two admins
+    // demoting each other at the same moment would otherwise both read a count
+    // of two, both proceed, and leave the platform with zero.
+    await client.query("select id from users where 'super_admin' = any(roles) and status = 'active' for update");
+    const target = await client.query<{ id: string; roles: unknown; name: string }>(
+      "select id, roles, name from users where id = $1 for update",
+      [userId],
     );
-    if ((admins?.n ?? 0) <= 1 && beforeRoles.includes("super_admin")) {
-      throw conflict("Retain at least one super-admin.");
+    if (!target.rows[0]) throw notFound("User not found");
+
+    // `roles` is a Postgres enum array and arrives as `{student,super_admin}`,
+    // not a JavaScript array; stringArray exists for exactly this reason.
+    const before = stringArray(target.rows[0].roles);
+    const removing = before.includes("super_admin") && !next.includes("super_admin");
+    if (removing) {
+      const others = await client.query<{ n: number }>(
+        "select count(*)::int as n from users where 'super_admin' = any(roles) and status = 'active' and id <> $1",
+        [userId],
+      );
+      if ((others.rows[0]?.n ?? 0) === 0) throw conflict("Retain at least one super-admin.");
     }
-  }
-  await query("update users set roles = $2::global_role[] where id = $1", [userId, unique]);
-  await writeAudit({
-    actorId: me.id,
-    action: unique.length > beforeRoles.length ? "user.role_granted" : "user.role_revoked",
-    entityType: "user",
-    entityId: userId,
-    metadata: { before: beforeRoles, after: unique, targetName: target.name },
+
+    const added = next.filter((role) => !before.includes(role));
+    const removed = before.filter((role) => !(next as string[]).includes(role));
+    await client.query("update users set roles = $2::global_role[] where id = $1", [userId, next]);
+    await writeAudit(
+      {
+        actorId: me.id,
+        action:
+          added.length > 0 && removed.length === 0
+            ? "user.role_granted"
+            : removed.length > 0 && added.length === 0
+              ? "user.role_revoked"
+              : "user.roles_changed",
+        entityType: "user",
+        entityId: userId,
+        metadata: { before, after: next, added, removed, targetName: target.rows[0].name },
+      },
+      client,
+    );
+    return removing;
   });
-  if (!unique.includes("super_admin") && beforeRoles.includes("super_admin")) {
-    await revokeAllSessions(userId);
-  }
+
+  // A demoted admin must not keep a session that still carries the old role.
+  if (removedSuperAdmin) await revokeAllSessions(userId);
 }
 
 /**

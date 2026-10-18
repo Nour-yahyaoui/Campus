@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { OAUTH_STATE_COOKIE, OAUTH_VERIFIER_COOKIE } from "@campussphere/contracts";
-import { completeGoogleFlow, isAppError } from "@campussphere/core";
+import { clientIp, completeGoogleFlow, isAppError } from "@campussphere/core";
 import { setSessionCookie } from "@/lib/session";
 import { absoluteUrl, requestOrigin } from "@/lib/url";
 
@@ -15,13 +15,13 @@ export async function GET(request: Request) {
   const cookieState = store.get(OAUTH_STATE_COOKIE)?.value ?? null;
   const cookieVerifier = store.get(OAUTH_VERIFIER_COOKIE)?.value ?? null;
 
-  const fail = (message: string) => {
+  const fail = (code: string) => {
     const target = absoluteUrl("/login", request);
-    target.searchParams.set("error", message);
+    target.searchParams.set("error", code);
     return NextResponse.redirect(target);
   };
 
-  if (!code || !state) return fail("Google did not complete the sign-in. Try again.");
+  if (!code || !state) return fail("oauth_denied");
   try {
     const { session, redirectTo } = await completeGoogleFlow({
       code,
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       cookieState,
       cookieVerifier,
       userAgent: request.headers.get("user-agent"),
-      ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      ip: clientIp(request),
       origin: requestOrigin(request),
     });
     await setSessionCookie(session);
@@ -41,12 +41,11 @@ export async function GET(request: Request) {
     }
     return response;
   } catch (error) {
-    // Only our own user-facing errors are safe to echo back. Provider or
-    // database failures get a generic message; the detail stays in the log.
-    const message = isAppError(error)
-      ? error.message
-      : "Google sign-in could not be completed. Try again in a moment.";
+    // Never echo the error text into the URL: a crafted link could otherwise
+    // put arbitrary words in the notice. The detail stays in the log.
     if (!isAppError(error)) console.error("[auth] google callback failed", error);
-    return fail(message);
+    const code =
+      isAppError(error) && /unverified/i.test(error.message) ? "oauth_unverified" : "oauth_failed";
+    return fail(code);
   }
 }

@@ -6,6 +6,7 @@ import {
   migrationStatus,
   seedDemoData,
   siteUrl,
+  writeAudit,
   type DemoSeedResult,
 } from "@campussphere/core";
 import { decideAccess, escapeHtml, readDatabaseState, type DatabaseState } from "@/lib/initialize";
@@ -29,6 +30,8 @@ interface Summary {
   demo?: DemoSeedResult | { error: string } | null;
   nextSteps?: string[];
   siteUrl?: string;
+  /** GET never writes; this says whether a POST would be accepted. */
+  canWrite?: boolean;
 }
 
 /**
@@ -49,9 +52,13 @@ interface Summary {
 async function handle(request: Request): Promise<Response> {
   const env = getEnv();
   const url = new URL(request.url);
-  const providedToken = url.searchParams.get("token") ?? request.headers.get("x-setup-token");
+  // Header first: query strings end up in proxy logs, browser history and
+  // Referer headers. `?token=` stays supported because it is what the setup
+  // page and the deployment docs use, but a header never leaks by accident.
+  const providedToken = request.headers.get("x-setup-token") ?? url.searchParams.get("token");
   const email = (url.searchParams.get("email") ?? "").trim().toLowerCase();
   const demoParam = url.searchParams.get("demo");
+  const isWrite = request.method === "POST" || request.method === "PUT";
 
   const before = await readDatabaseState();
   const access = decideAccess({
@@ -59,13 +66,47 @@ async function handle(request: Request): Promise<Response> {
     expectedToken: env.SETUP_TOKEN ?? "",
     providedToken,
     state: before,
+    isProduction: env.isProduction,
+    initialAdminConfigured: Boolean(env.INITIAL_ADMIN_EMAIL),
   });
 
   if (access.mode === "denied") {
+    await auditAttempt("setup.denied", {
+      reason: access.status === 401 ? "bad-token" : "locked",
+      attemptedEmail: email || null,
+    });
     return respond(request, access.status, {
       ok: false,
       mode: "denied",
       message: access.message,
+      state: { schemaReady: before.schemaReady, superAdmins: before.superAdmins },
+      siteUrl: siteUrl(),
+    });
+  }
+
+  // A GET is a status report and never mutates. Crawlers, chat link previews
+  // and security scanners all issue GETs; the previous version applied
+  // migrations and created the first super-admin for whoever asked first.
+  if (!isWrite) {
+    return respond(request, 200, {
+      ok: true,
+      mode: "read-only",
+      alreadyInitialized: before.superAdmins > 0,
+      changed: false,
+      state: { schemaReady: before.schemaReady, superAdmins: before.superAdmins },
+      message:
+        access.mode === "read-only"
+          ? "This database is already initialised. Nothing was changed."
+          : "This page only reports status. Submit the form below to apply setup.",
+      canWrite: access.mode === "write",
+      nextSteps:
+        access.mode === "write"
+          ? [
+              "Submit the form below (a POST) to apply migrations" +
+                (access.allowAdmin && email ? " and create the first super-admin." : "."),
+            ]
+          : ["Sign in at /login with your super-admin account."],
+      siteUrl: siteUrl(),
     });
   }
 
@@ -94,6 +135,25 @@ async function handle(request: Request): Promise<Response> {
       mode: "write",
       message: `Unknown demo selection "${demoParam}". Use ?demo=light, or leave the parameter out.`,
       nextSteps: ["Remove the demo parameter to set up an empty database."],
+    });
+  }
+  if (prefersDemo && !access.allowDemo) {
+    return respond(request, 403, {
+      ok: false,
+      mode: "denied",
+      message:
+        "Demo content cannot be seeded on this deployment. Set SETUP_TOKEN and call this URL with it.",
+      siteUrl: siteUrl(),
+    });
+  }
+  if (email && !access.allowAdmin) {
+    return respond(request, 403, {
+      ok: false,
+      mode: "denied",
+      message:
+        "This deployment creates its first super-admin through INITIAL_ADMIN_EMAIL, not through this URL. " +
+        "Sign in with that Google account instead.",
+      siteUrl: siteUrl(),
     });
   }
 
@@ -149,6 +209,12 @@ async function handle(request: Request): Promise<Response> {
   const status = await migrationStatus().catch(() => null);
   const demoSeeded = Boolean(demo && "seeded" in demo && demo.seeded);
 
+  await auditAttempt("setup.completed", {
+    migrations: appliedNow.length,
+    admin: admin?.email ?? null,
+    demo: demoSeeded,
+  });
+
   return respond(request, 200, {
     ok: Boolean(appliedNow.length) || Boolean(admin) || after.superAdmins > 0 || demoSeeded,
     mode: "write",
@@ -168,13 +234,31 @@ async function handle(request: Request): Promise<Response> {
       : after.superAdmins > 0
         ? ["Sign in at /login with your super-admin account."]
         : [
-            "Add &email=you@university.edu to this URL and reload to create the first super-admin.",
+            "Add &email=you@university.edu to this URL and submit it again to create the first super-admin.",
             ...(demoSeeded
               ? ["Browse /clubs and /events — the demo catalogue is live and the first-run window stays open until you re-run this URL with your email."]
               : []),
           ],
     siteUrl: siteUrl(),
   });
+}
+
+/**
+ * Best-effort audit for setup attempts. It must never break setup itself: the
+ * schema (and therefore `audit_events`) may not exist yet on the very first run.
+ */
+async function auditAttempt(action: string, metadata: Record<string, unknown>): Promise<void> {
+  try {
+    await writeAudit({
+      actorId: null,
+      action,
+      entityType: "system",
+      entityId: "setup",
+      metadata,
+    });
+  } catch {
+    /* no schema yet, or the database is down — the response still stands */
+  }
 }
 
 function respond(request: Request, status: number, body: Summary): Response {
@@ -232,6 +316,12 @@ function renderPage(status: number, body: Summary): string {
   }
 
   const steps = (body.nextSteps ?? []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
+  // An empty `action` posts to the current URL *including* its query string,
+  // so the operator can keep their email/token in the address bar and press the
+  // button — without the secret being copied into the HTML.
+  const form = body.canWrite
+    ? `<form method="post"><button type="submit">Run setup</button></form>`
+    : "";
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -248,6 +338,9 @@ function renderPage(status: number, body: Summary): string {
   code { background:#f1ece1; padding:1px 5px; border-radius:5px; }
   a { color:#24503c; }
   .err { background:#f8e1dc; color:#9c2f24; padding:10px 12px; border-radius:9px; }
+  form { margin: 18px 0 6px; }
+  button { font: inherit; background:#24503c; color:#fff; border:0; border-radius:9px; padding:10px 16px; cursor:pointer; }
+  button:hover { background:#17392a; }
 </style></head>
 <body><main>
   <span class="badge ${body.ok ? "ok" : "fail"}">${escapeHtml(title)}</span>
@@ -255,22 +348,26 @@ function renderPage(status: number, body: Summary): string {
   <p>${escapeHtml(body.message ?? (body.ok ? "This deployment is ready." : "Something went wrong."))}</p>
   ${body.adminError ? `<p class="err">${escapeHtml(body.adminError)}</p>` : ""}
   ${rows.length ? `<ul>${rows.join("")}</ul>` : ""}
+  ${form}
   ${steps ? `<p><strong>Next</strong></p><ul>${steps}</ul>` : ""}
-  <p style="color:#73786a;font-size:.85rem;margin-bottom:0">HTTP ${status}. Safe to bookmark: once setup is done this page only reports status.</p>
+  <p style="color:#73786a;font-size:.85rem;margin-bottom:0">HTTP ${status}. This page only reports status until you submit the form; once setup is done it stays read-only.</p>
 </main></body></html>`;
 }
 
-export async function GET(request: Request): Promise<Response> {
-  return handle(request).catch((error: unknown) => {
-    console.error("[initialize] failed", error);
-    return NextResponse.json(
-      { ok: false, mode: "denied", message: "The database is not reachable. Check DATABASE_URL." },
-      { status: 503 },
-    );
-  });
+function failure(error: unknown): Response {
+  console.error("[initialize] failed", error);
+  return NextResponse.json(
+    { ok: false, mode: "denied", message: "The database is not reachable. Check DATABASE_URL." },
+    { status: 503 },
+  );
 }
 
-/** Same behaviour for scripts: `curl -X POST 'https://app/api/initialize?email=…'`. */
+/** Status only. Safe to link, bookmark and preview: it never writes. */
+export async function GET(request: Request): Promise<Response> {
+  return handle(request).catch(failure);
+}
+
+/** Applies setup. `curl -X POST 'https://app/api/initialize?email=…'`. */
 export async function POST(request: Request): Promise<Response> {
-  return GET(request);
+  return handle(request).catch(failure);
 }

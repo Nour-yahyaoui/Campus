@@ -8,6 +8,7 @@ export * from "./notifications";
 export * from "./email";
 export * from "./jobs";
 export * from "./http";
+export * from "./privacy";
 
 export * from "./services/clubs";
 export * from "./services/projects";
