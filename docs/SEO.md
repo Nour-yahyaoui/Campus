@@ -10,7 +10,7 @@ Everything a crawler, an assistant or a link preview can use, and where it lives
 | Entity JSON-LD (Organization / CreativeWork / Event) | detail pages | `apps/web/lib/seo.ts` |
 | Breadcrumb JSON-LD | detail pages | `breadcrumbs` in `lib/seo.ts` |
 | Listing JSON-LD (ItemList) | `/clubs`, `/events`, `/projects` | page components |
-| `robots.txt` | `/robots.txt` | `app/robots.ts` |
+| `robots.txt` | `/robots.txt` | `app/robots.txt/route.ts`, `lib/robots.ts` |
 | `sitemap.xml` | `/sitemap.xml` | `app/sitemap.xml/route.ts` |
 | `llms.txt` | `/llms.txt` | `app/llms.txt/route.ts` |
 | `llms-full.txt` | `/llms-full.txt` | `app/llms-full.txt/route.ts` |
