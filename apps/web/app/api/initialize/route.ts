@@ -9,8 +9,10 @@ import {
 import { decideAccess, escapeHtml, readDatabaseState, type DatabaseState } from "@/lib/initialize";
 
 export const dynamic = "force-dynamic";
-// Schema creation on a sleeping database can take longer than a default route.
-export const maxDuration = 120;
+// Schema creation on a sleeping database can take longer than a default route,
+// but 60 s is the ceiling on Vercel's Hobby plan and seven migrations take
+// seconds; a larger value would be rejected at deploy time.
+export const maxDuration = 60;
 
 interface Summary {
   ok: boolean;
