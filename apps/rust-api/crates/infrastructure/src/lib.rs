@@ -101,9 +101,7 @@ fn like_pattern(value: &str) -> String {
 
 pub async fn list_clubs(pool: &PgPool, query: ClubListQuery<'_>) -> StoreResult<Vec<PgRow>> {
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
-    let pattern = query
-        .search
-        .map(like_pattern);
+    let pattern = query.search.map(like_pattern);
     let rows = sqlx::query(
         r#"
         select c.id, c.slug, c.name, c.tagline, c.category::text as category,
@@ -144,9 +142,7 @@ pub struct EventListQuery<'a> {
 
 pub async fn list_events(pool: &PgPool, query: EventListQuery<'_>) -> StoreResult<Vec<PgRow>> {
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
-    let pattern = query
-        .search
-        .map(like_pattern);
+    let pattern = query.search.map(like_pattern);
     let rows = sqlx::query(
         r#"
         select e.id, e.slug, e.title, e.summary, e.category::text as category, e.status::text as status,
@@ -189,9 +185,7 @@ pub struct ProjectListQuery<'a> {
 
 pub async fn list_projects(pool: &PgPool, query: ProjectListQuery<'_>) -> StoreResult<Vec<PgRow>> {
     let limit = query.limit.clamp(1, MAX_PAGE_SIZE) + 1;
-    let pattern = query
-        .search
-        .map(like_pattern);
+    let pattern = query.search.map(like_pattern);
     let rows = sqlx::query(
         r#"
         select p.id, p.slug, p.title, p.summary, p.category::text as category, p.status::text as status,
