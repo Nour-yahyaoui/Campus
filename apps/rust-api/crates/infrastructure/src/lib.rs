@@ -96,7 +96,9 @@ pub async fn list_clubs(pool: &PgPool, query: ClubListQuery<'_>) -> StoreResult<
     let rows = sqlx::query(
         r#"
         select c.id, c.slug, c.name, c.tagline, c.category::text as category,
-               c.logo_url, c.verified, c.membership_policy,
+               -- ::text matters: this column is a Postgres enum and the API
+               -- decodes it into a String, which fails otherwise.
+               c.logo_url, c.verified, c.membership_policy::text as membership_policy,
                (select count(*) from club_memberships m
                  where m.club_id = c.id and m.status = 'active') as member_count,
                (select count(*) from events e
