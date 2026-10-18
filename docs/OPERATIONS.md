@@ -175,6 +175,23 @@ Truthfulness rules the panel follows:
 - On Vercel each function instance reports its own memory. The figure is the
   instance that answered the request, not a fleet total.
 
+### What the two services actually do
+
+They are not a failover pair and the panel no longer implies they are:
+
+| Job | Who does it |
+| --- | --- |
+| Pages, sign-in, sessions, forms, every write | Next.js, always |
+| Public read API `/api/v1/*` | Actix when `API_BASE_URL` is set and answering; Next.js otherwise |
+
+`apps/web/app/api/v1/[...rest]/route.ts` proxies `GET`/`HEAD` reads to
+`${API_BASE_URL}/api/v1/...` and streams the answer back. If the primary times
+out (free-tier hosts sleep), returns a 5xx, or is not configured, the same query
+is answered from this deployment's own database. Every response says which one
+answered in `x-campussphere-served-by`, and a fallback also carries
+`x-campussphere-primary: unreachable|not-configured` plus a `warning` header.
+Writes are refused with `503` rather than half-implemented.
+
 The primary is only probed when `API_BASE_URL` is set. If it is, set the same
 `METRICS_TOKEN` on both services so the detailed endpoint is not publicly
 readable; the probe sends `Authorization: Bearer …`. The endpoint returns `401`

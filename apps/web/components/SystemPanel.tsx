@@ -263,14 +263,8 @@ export function SystemPanel() {
   const primary = snapshot?.nodes.primary ?? null;
   const updated = snapshot ? new Date(snapshot.generatedAt).toLocaleTimeString("en-GB") : null;
 
-  const verdict =
-    primary?.status === "online"
-      ? `The Actix primary answered in ${primary.latencyMs ?? 0} ms. The site itself is still served by Next.js.`
-      : primary?.status === "degraded"
-        ? "The Actix primary is alive, but it is not reporting detailed metrics."
-        : primary?.status === "not_configured"
-          ? "No Actix primary is configured, so Next.js carries every request."
-          : "The Actix primary is not answering. Next.js is unaffected.";
+  const pages =
+    "Pages are rendered per request on this deployment — sign-in, forms and writes all live here.";
 
   return (
     <section className="card srv-card" aria-labelledby="servers-heading">
@@ -311,11 +305,18 @@ export function SystemPanel() {
 
       {snapshot ? (
         <>
-          <p className={`srv-verdict srv-verdict-${primary?.status ?? "unknown"}`} aria-live="polite">
-            <span className="srv-verdict-tag">Serving</span>
-            <strong>{snapshot.serving === "fallback" ? "Fallback · Next.js" : "Primary · Actix"}</strong>
-            <span className="small muted">{verdict}</span>
-          </p>
+          <div className="srv-serving" aria-live="polite">
+            <p className="srv-verdict">
+              <span className="srv-verdict-tag">Pages</span>
+              <strong>Next.js</strong>
+              <span className="small muted">{pages}</span>
+            </p>
+            <p className={`srv-verdict srv-verdict-${snapshot.readApi.servedBy === "primary" ? "online" : primary?.status ?? "unknown"}`}>
+              <span className="srv-verdict-tag">Read API</span>
+              <strong>{snapshot.readApi.servedBy === "primary" ? "Actix" : "Next.js"}</strong>
+              <span className="small muted">{snapshot.readApi.detail}</span>
+            </p>
+          </div>
 
           {error ? (
             <p className="srv-stale" role="status">

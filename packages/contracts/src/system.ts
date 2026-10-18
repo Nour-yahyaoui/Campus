@@ -71,8 +71,22 @@ export interface ServerNode {
 export interface SystemSnapshot {
   generatedAt: string;
   environment: string;
-  /** Which node answers the product's own pages and `/api/*` calls. */
+  /**
+   * Which node renders the product's own pages. Always the Next.js
+   * deployment: the Actix service is a read API, not a renderer.
+   */
   serving: ServerRole;
+  /**
+   * Which node answers the public read API at `/api/v1/*`. With a primary
+   * configured and answering, that is the Actix service; otherwise this
+   * deployment answers the same queries itself.
+   */
+  readApi: {
+    servedBy: ServerRole;
+    url: string | null;
+    /** One sentence saying who answers, and what happens if the primary stops. */
+    detail: string;
+  };
   traffic: {
     windowMinutes: number;
     requests: number;

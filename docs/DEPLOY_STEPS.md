@@ -345,8 +345,11 @@ API_BASE_URL=https://<your-service>.onrender.com
 METRICS_TOKEN=<long random string>
 ```
 
-Without `API_BASE_URL` the panel honestly reports the primary as *not
-configured*; it never invents a second server. The endpoint returns `401` when
+The same variable also decides who serves the public read API: with it set,
+`/api/v1/*` on your site is proxied to the Rust service, and if that service is
+asleep or down the same queries are answered locally. Without it the panel
+reports the primary as *not configured* and `/api/v1/*` is answered by Next.js;
+it never invents a second server. The endpoint returns `401` when
 a token is configured and the probe does not present it.
 
 **Checkpoint after the first build:**

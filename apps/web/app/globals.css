@@ -1917,6 +1917,16 @@ li {
   gap: 12px;
 }
 
+.srv-serving {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.srv-serving .srv-verdict {
+  margin: 0;
+}
+
 .srv-verdict {
   display: flex;
   flex-wrap: wrap;

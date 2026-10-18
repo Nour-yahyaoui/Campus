@@ -375,14 +375,28 @@ export async function systemSnapshot(): Promise<SystemSnapshot> {
   const [primary, trafficRow] = await Promise.all([probePrimary(env), trafficResult()]);
   const fallback = fallbackNode(trafficRow.traffic, env, trafficRow.databaseReady);
 
+  const readApiServedByPrimary = primary.status === "online";
+
   return {
     generatedAt: new Date().toISOString(),
     environment: env.APP_ENV,
     serving: "fallback",
+    readApi: {
+      servedBy: readApiServedByPrimary ? "primary" : "fallback",
+      url: env.API_BASE_URL ?? null,
+      detail:
+        primary.status === "online"
+          ? "/api/v1/* is proxied to the Actix service. If it stops answering, this deployment answers the same queries itself."
+          : primary.status === "degraded"
+            ? "/api/v1/* goes to the Actix service when it answers; this deployment answers the same queries when it does not."
+            : primary.status === "not_configured"
+              ? "/api/v1/* is answered by this deployment: no primary is configured."
+              : "/api/v1/* is answered by this deployment while the Actix primary is not answering.",
+    },
     traffic: trafficRow.traffic,
     nodes: { primary, fallback },
     notes: [
-      "Next.js renders every page and /api/* call. The Actix service is the optional read API at /api/v1/*; it is not in this dashboard's request path.",
+      "Next.js renders every page and every write. The Actix service, when configured, carries the public read API at /api/v1/*; this dashboard probes it directly instead of routing a page through it.",
       "On Vercel each function instance reports its own memory. These are the numbers for the instance that answered this request, not a fleet total.",
       "Load average is the host's, not the container's, on shared platforms; CPU and memory are the process's own.",
       "The event-loop figure is a rolling window, reset on every reading. It needs 150 samples before it is shown, and no verdict is issued for the first 30 seconds of a process.",
