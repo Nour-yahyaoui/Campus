@@ -374,19 +374,11 @@ still belong on Render.
    | `S3_FORCE_PATH_STYLE` | `true` |
    | `STORAGE_PUBLIC_BASE_URL` | only for a `public_read` bucket |
 
-5. In **Build & Development Settings**, override the **Install Command**:
-
-   ```bash
-   cd ../.. && npm ci --include=dev
-   ```
-
-   The default install runs inside `apps/web`, which installs only that
-   workspace's dependencies — `pg`, `jose` and the AWS SDK live in
-   `packages/core/package.json`, so the build then fails with *Module not found*
-   for each of them. Installing from the repository root links the workspaces
-   into `/vercel/path0/node_modules`, where every package can see them.
-   Build Command stays `npm run build` (it resolves to the web workspace).
-
+5. Leave **Build & Development Settings** at their defaults. `apps/web` has a
+   `postinstall` that installs the repository root when `packages/core`'s
+   dependencies are missing, so the default install inside `apps/web` still
+   produces a complete build. (Without it, the build fails with *Module not
+   found* for `pg`, `jose` and the AWS SDK.)
 6. Deploy, then check `https://<web>/api/health/ready`.
 
 Preview deployments must not point at the production database, and should use a

@@ -90,7 +90,8 @@ variable. They would be shipped to the browser.
 `deployment/render-full.yaml` declares the services. Or configure manually:
 
 - Environment: Docker.
-- Dockerfile: `apps/rust-api/Dockerfile`, build context: repository root.
+- Dockerfile: `apps/rust-api/Dockerfile`, build context: `apps/rust-api` (that
+  folder is a self-contained Cargo workspace).
 - Health check path: `/health/ready`.
 - Start command: the image entrypoint (`campussphere-api`), binding `0.0.0.0`
   and `$PORT`.
