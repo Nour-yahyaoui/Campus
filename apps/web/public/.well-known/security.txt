@@ -2,5 +2,5 @@
 Contact: https://github.com/Nour-yahyaoui/Campus/security/advisories/new
 Expires: 2027-10-01T00:00:00.000Z
 Preferred-Languages: en, fr, ar
-Canonical: https://campus-web-eight.vercel.app/.well-known/security.txt
+Canonical: https://campus-spheree.com/.well-known/security.txt
 Policy: https://github.com/Nour-yahyaoui/Campus/blob/main/SECURITY.md
