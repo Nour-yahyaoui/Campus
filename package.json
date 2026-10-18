@@ -2,7 +2,7 @@
   "name": "campussphere",
   "private": true,
   "version": "0.1.0",
-  "description": "CampusSphere \u2014 a free, open-source university community platform",
+  "description": "CampusSphere — a free, open-source university community platform",
   "license": "MIT",
   "workspaces": [
     "packages/*",
@@ -35,6 +35,8 @@
     "start:api": "npm run start --workspace @campussphere/api"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^131.0.1",
+    "puppeteer-core": "^23.11.1",
     "tsx": "^4.23.15"
   }
 }

@@ -271,7 +271,7 @@ export default function HomePage() {
 
       <section className="section">
         <div className="shell">
-          <div className="panel" style={{ background: "var(--forest)", color: "#fffdf8", borderColor: "var(--forest-dark)" }}>
+          <div className="panel" style={{ background: "#24503c", color: "#fffdf8", borderColor: "#17392a" }}>
             <div className="split">
               <div>
                 <p className="eyebrow" style={{ color: "#e7c79a" }}>
@@ -287,7 +287,7 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="stack">
-                <Link className="btn" href="/dashboard/projects/new" style={{ background: "#fffdf8", color: "var(--forest-dark)" }}>
+                <Link className="btn" href="/dashboard/projects/new" style={{ background: "#fffdf8", color: "#17392a" }}>
                   Propose a project
                 </Link>
                 <Link className="btn" href="/dashboard/events/new" style={{ background: "#e7c79a", color: "#3b2a10" }}>

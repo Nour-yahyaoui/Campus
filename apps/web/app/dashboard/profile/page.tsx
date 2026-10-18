@@ -72,7 +72,7 @@ export default async function ProfilePage({
         <a className="btn btn-secondary" href="/api/me/export">Download my data</a>
       </div>
 
-      <div className="card mt-2" style={{ borderColor: "#e7c3bb" }}>
+      <div className="card mt-2" style={{ borderColor: "var(--border-danger)" }}>
         <h2 style={{ fontSize: "1.2rem", color: "var(--danger)" }}>Delete your account</h2>
         <p className="small">
           This anonymises your account immediately and signs you out everywhere. Your posts and

@@ -143,6 +143,38 @@ The System Observatory shows these live but does not page anyone. Alerts belong
 to the hosting provider's monitoring; this repository does not pretend to ship a
 paging system.
 
+## Themes
+
+The product ships light and dark, and the reader decides. `data-theme` on
+`<html>` carries an explicit choice; when it is absent the
+`prefers-color-scheme` media query decides, so an operating system that
+switches at sunset takes the site with it.
+
+| Reader picks | `data-theme` | Decided by |
+| --- | --- | --- |
+| System (default) | absent | the operating system, live |
+| Light | `light` | the reader, forever |
+| Dark | `dark` | the reader, forever |
+
+- The choice lives in the `cs_theme` cookie, so the **server** renders the
+  right theme on the first paint. There is no inline bootstrap script to flash
+  white before it runs, and nothing for the CSP to block.
+- The toggle in the header cycles Light → Dark → System. It updates the
+  attribute and the cookie directly, with no request and no re-render.
+- **A theme is colour only.** Every dark rule is a custom property; not one
+  layout property changes, so every breakpoint behaves identically in both
+  themes. `apps/web/test/theme.test.ts` enforces that, along with:
+  - both theme blocks declaring exactly the same tokens, with the same values;
+  - every `var(--token)` in the stylesheet existing in `:root`;
+  - no hard-coded surface colour anywhere outside the token blocks;
+  - WCAG AA (4.5:1) for every text/background pair in **both** themes.
+- The QR box stays white on purpose: a dark QR code is not a scannable one.
+
+`node scripts/theme-check.mjs http://localhost:3000` renders the main routes at
+390 × 844, 834 × 1112 and 1440 × 900 in both themes and fails if a page comes
+out with the same background twice. It needs Playwright installed locally and
+is not part of CI (CI has no browser).
+
 ## Server health panel
 
 **Admin → Overview** shows two live nodes side by side: the Next.js deployment

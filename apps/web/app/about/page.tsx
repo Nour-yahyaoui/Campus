@@ -79,7 +79,7 @@ export default async function AboutPage() {
         <h2>Status of this build</h2>
         <div className="grid-2">
           <div className="card">
-            <h3 style={{ fontSize: "1.1rem", color: "var(--forest)" }}>Implemented and verified</h3>
+            <h3 style={{ fontSize: "1.1rem", color: "var(--accent-ink)" }}>Implemented and verified</h3>
             <ul className="small" style={{ paddingLeft: 18, lineHeight: 1.7 }}>
               {verified.map((item) => <li key={item}>{item}</li>)}
             </ul>

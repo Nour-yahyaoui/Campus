@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces";
 import "./globals.css";
@@ -11,6 +13,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { RouteProgress } from "@/components/RouteProgress";
 import { OfflineGate } from "@/components/OfflineGate";
 import { SITE, jsonLdString, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
+import { THEME_COOKIE, parseTheme, themeAttribute } from "@/lib/theme";
 
 const baseUrl = siteUrl();
 
@@ -73,26 +76,33 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false, address: false, email: false },
   other: {
     "theme-color": "#24503c",
-    "color-scheme": "light",
+    "color-scheme": "light dark",
   },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#24503c",
+  // The browser chrome follows the page: deep green on the light theme, the
+  // page's own near-black on the dark one.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#24503c" },
+    { media: "(prefers-color-scheme: dark)", color: "#15170f" },
+  ],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const me = await currentUser().catch(() => null);
+  const [me, store] = await Promise.all([currentUser().catch(() => null), cookies()]);
+  const theme = parseTheme(store.get(THEME_COOKIE)?.value);
   return (
-    <html lang="en">
+    <html lang="en" data-theme={themeAttribute(theme)} suppressHydrationWarning>
       <body>
         <a className="skip-link" href="#main">
           Skip to content
         </a>
         <SiteHeader
           user={me ? { name: me.name, roles: me.roles, unread: me.unreadNotifications } : null}
+          theme={theme}
         />
         {/* React hoists these into <head>. They cannot live in `metadata`
             because a page that sets its own `alternates` would drop them. */}
@@ -122,6 +132,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           dangerouslySetInnerHTML={{ __html: jsonLdString([websiteJsonLd(), organizationJsonLd()]) }}
         />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

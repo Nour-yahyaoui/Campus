@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "./ThemeToggle";
+import type { ThemeChoice } from "@/lib/theme";
 
 interface HeaderUser {
   name: string;
@@ -10,7 +12,13 @@ interface HeaderUser {
   unread: number;
 }
 
-export function SiteHeader({ user }: { user: HeaderUser | null }) {
+export function SiteHeader({
+  user,
+  theme,
+}: {
+  user: HeaderUser | null;
+  theme: ThemeChoice;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -86,6 +94,7 @@ export function SiteHeader({ user }: { user: HeaderUser | null }) {
                 Sign in
               </Link>
             )}
+            <ThemeToggle initial={theme} />
           </div>
         </nav>
       </div>
