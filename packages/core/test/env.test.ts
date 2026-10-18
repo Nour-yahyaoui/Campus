@@ -57,3 +57,14 @@ describe("loadEnv optional strings", () => {
     expect(() => loadEnv({ ...base, SETUP_TOKEN: "short" })).toThrow(/SETUP_TOKEN/);
   });
 });
+
+describe("loadEnv environment label", () => {
+  it("never calls a production process development", () => {
+    const env = loadEnv({ ...base, NODE_ENV: "production" });
+    expect(env.APP_ENV).toBe("production");
+  });
+
+  it("keeps an explicitly configured APP_ENV", () => {
+    expect(loadEnv({ ...base, APP_ENV: "staging" }).APP_ENV).toBe("staging");
+  });
+});

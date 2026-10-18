@@ -18,7 +18,7 @@ export type ServerStatus =
   /** No address is configured, so there is nothing to probe. */
   | "not_configured";
 
-export type LoadLevel = "idle" | "light" | "moderate" | "heavy" | "unknown";
+export type LoadLevel = "warming" | "idle" | "light" | "moderate" | "heavy" | "unknown";
 
 export interface ServerMemory {
   rssBytes: number;

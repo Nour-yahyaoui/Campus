@@ -22,7 +22,19 @@ export interface LoadSignals {
   eventLoopP99Ms?: number | null;
   poolWaiting?: number | null;
   p95Ms?: number | null;
+  /**
+   * How many requests the p95 was computed from. A percentile over a dozen
+   * cold requests is noise dressed as a trend.
+   */
+  sampleRequests?: number | null;
+  /** Age of the process. A cold start is not load. */
+  uptimeSeconds?: number | null;
 }
+
+/** Below this age, the process is still paying startup costs. */
+export const MIN_LOAD_UPTIME_SECONDS = 30;
+/** Below this sample count, latency percentiles are not a trend. */
+export const MIN_LATENCY_SAMPLES = 20;
 
 export interface LoadVerdict {
   level: LoadLevel;
@@ -35,7 +47,18 @@ export function classifyLoad(signals: LoadSignals): LoadVerdict {
   const cpu = signals.cpuLoadPercent;
   const loop = signals.eventLoopP99Ms ?? null;
   const waiting = signals.poolWaiting ?? null;
-  const p95 = signals.p95Ms ?? null;
+  const uptime = signals.uptimeSeconds ?? null;
+  const samples = signals.sampleRequests ?? null;
+  const rawP95 = signals.p95Ms ?? null;
+  // Latency only counts once there are enough requests to mean anything.
+  const p95 = rawP95 !== null && (samples === null || samples >= MIN_LATENCY_SAMPLES) ? rawP95 : null;
+
+  if (uptime !== null && uptime < MIN_LOAD_UPTIME_SECONDS) {
+    return {
+      level: "warming",
+      reason: `This instance is ${Math.max(1, Math.round(uptime))} s old. Cold-start work is not load; the verdict begins at ${MIN_LOAD_UPTIME_SECONDS} s.`,
+    };
+  }
 
   if (cpu === null && loop === null && waiting === null && p95 === null) {
     return {

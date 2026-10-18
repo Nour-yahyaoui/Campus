@@ -58,7 +58,7 @@ const optionalInteger = z.preprocess(blankToUndefined, z.coerce.number().int().o
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  APP_ENV: z.string().default("development"),
+  APP_ENV: z.string().optional(),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
   NEXT_PUBLIC_SITE_URL: optionalUrl,
@@ -97,9 +97,11 @@ const schema = z.object({
   AUTH_ALLOWED_ORIGINS: z.preprocess(blankToUndefined, z.string().optional()),
 });
 
-export type Env = Omit<z.infer<typeof schema>, "NEXT_PUBLIC_SITE_URL"> & {
+export type Env = Omit<z.infer<typeof schema>, "NEXT_PUBLIC_SITE_URL" | "APP_ENV"> & {
   /** Always present: falls back to the hosting provider's URL, then localhost. */
   NEXT_PUBLIC_SITE_URL: string;
+  /** Always present: defaults to NODE_ENV, so production never reads "development". */
+  APP_ENV: string;
   isProduction: boolean;
   isTest: boolean;
   googleConfigured: boolean;
@@ -138,6 +140,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   return {
     ...value,
     NEXT_PUBLIC_SITE_URL: resolvedSiteUrl,
+    // An unset APP_ENV used to fall back to "development" even on a production
+    // deployment, which made the dashboard footer read "env development".
+    APP_ENV: value.APP_ENV ?? (isProduction ? "production" : "development"),
     isProduction,
     isTest: value.NODE_ENV === "test",
     googleConfigured,

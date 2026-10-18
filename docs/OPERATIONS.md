@@ -162,6 +162,11 @@ verdict names the signal that produced it.
 Truthfulness rules the panel follows:
 
 - A missing measurement is `null` and renders as `—`. It is never shown as zero.
+- **Cold starts are not load.** The event-loop figure is a rolling window reset
+  on every read (a cumulative histogram turns one startup stall into a
+  permanent "p99 = 9 s"), it needs at least 150 samples before it counts, and
+  no verdict is issued for the first 30 seconds of a process. Latency only
+  influences the verdict once 20 requests exist.
 - Memory percentages use the platform's own limit (`process.constrainedMemory()`
   on Vercel, the cgroup limit on Docker). Without a limit, only the absolute
   figure is shown.

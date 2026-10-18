@@ -26,6 +26,7 @@ const STATUS_WORD: Record<ServerNode["status"], string> = {
 };
 
 const LOAD_WORD: Record<LoadLevel, string> = {
+  warming: "Warming up",
   idle: "Idle",
   light: "Light",
   moderate: "Busy",
@@ -102,6 +103,7 @@ function NodeCard({ node, history }: { node: ServerNode; history?: number[] }) {
         {node.uptimeSeconds !== null ? <> · up {uptime(node.uptimeSeconds)}</> : null}
       </p>
 
+      {node.memory || node.cpu ? (
       <div className="srv-stats">
         <div>
           <span className="srv-stat-label">Memory</span>
@@ -131,6 +133,7 @@ function NodeCard({ node, history }: { node: ServerNode; history?: number[] }) {
           </span>
         </div>
       </div>
+      ) : null}
 
       {memoryPercent !== null ? (
         <div
@@ -329,7 +332,7 @@ export function SystemPanel() {
               {snapshot.traffic.requests} API request{snapshot.traffic.requests === 1 ? "" : "s"} in the
               last {snapshot.traffic.windowMinutes} min
               {snapshot.traffic.p95Ms !== null ? ` · p95 ${snapshot.traffic.p95Ms} ms` : ""}
-              {snapshot.traffic.errors > 0 ? ` · ${snapshot.traffic.errors} errors` : ""}
+              {snapshot.traffic.errors > 0 ? ` · ${snapshot.traffic.errors} error${snapshot.traffic.errors === 1 ? "" : "s"}` : ""}
               {" · "}env {snapshot.environment}
             </span>
             <details className="srv-notes">

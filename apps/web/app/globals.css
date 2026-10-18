@@ -2260,3 +2260,14 @@ li {
     font-size: 0.92rem;
   }
 }
+
+.load-warming {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
+.srv-node-not_configured .srv-node-detail,
+.srv-node-offline .srv-node-detail {
+  margin-bottom: 2px;
+}

@@ -31,6 +31,18 @@ describe("load verdicts", () => {
     expect(classifyLoad({ cpuLoadPercent: 2, p95Ms: 300 }).level).toBe("light");
   });
 
+  it("calls a cold start what it is, not load", () => {
+    const verdict = classifyLoad({ cpuLoadPercent: 3, eventLoopP99Ms: 40, uptimeSeconds: 12 });
+    expect(verdict.level).toBe("warming");
+    expect(verdict.reason).toContain("Cold-start work is not load");
+  });
+
+  it("ignores a percentile built from a handful of requests", () => {
+    // Eight requests cannot support a statement about the 95th percentile.
+    expect(classifyLoad({ cpuLoadPercent: 2, p95Ms: 1_800, sampleRequests: 8 }).level).toBe("idle");
+    expect(classifyLoad({ cpuLoadPercent: 2, p95Ms: 1_800, sampleRequests: 40 }).level).toBe("heavy");
+  });
+
   it("says idle only with numbers, and quotes them", () => {
     const verdict = classifyLoad({ cpuLoadPercent: 4, eventLoopP99Ms: 3, p95Ms: 41 });
     expect(verdict.level).toBe("idle");

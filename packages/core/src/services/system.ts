@@ -32,18 +32,37 @@ const MIB = 1024 * 1024;
 const round = (value: number): number => Math.round(value * 10) / 10;
 const clampPercent = (value: number): number => Math.max(0, Math.min(100, value));
 
+/**
+ * The sampler's own resolution is the floor of what it can report, so 10 ms is
+ * the smallest number the panel will ever show on an idle loop. At that
+ * resolution 150 samples is about a second and a half of observation: below
+ * it, the "99th percentile" is just the worst of a handful of readings.
+ */
+const LOOP_RESOLUTION_MS = 10;
+const MIN_LOOP_SAMPLES = 150;
+
 let histogram: IntervalHistogram | null = null;
 let lastCpu: { usage: NodeJS.CpuUsage; at: number; percent: number | null } | null = null;
 
-function eventLoopP99Ms(): number | null {
+/**
+ * Event-loop delay over the window since the last read, not since boot.
+ *
+ * A cumulative histogram is poisoned by startup: one 9 s stall while modules
+ * load stays the p99 for the life of the process, and a cold start is reported
+ * as "under load" forever. Resetting on every read makes the figure mean
+ * "how blocked was the loop recently".
+ */
+function eventLoopWindow(): { p99Ms: number | null; samples: number } {
   if (!histogram) {
-    histogram = monitorEventLoopDelay({ resolution: 20 });
+    histogram = monitorEventLoopDelay({ resolution: LOOP_RESOLUTION_MS });
     histogram.enable();
-    return null;
+    return { p99Ms: null, samples: 0 };
   }
-  if (histogram.count === 0) return null;
-  const p99 = histogram.percentile(99) / 1e6;
-  return Number.isFinite(p99) ? round(p99) : null;
+  const samples = histogram.count;
+  const raw = samples > 0 ? histogram.percentile(99) / 1e6 : 0;
+  histogram.reset();
+  const trustworthy = samples >= MIN_LOOP_SAMPLES && Number.isFinite(raw);
+  return { p99Ms: trustworthy ? round(raw) : null, samples };
 }
 
 function processCpuPercent(): number | null {
@@ -112,7 +131,9 @@ function trafficQuery(): Promise<SystemSnapshot["traffic"]> {
 function fallbackNode(traffic: SystemSnapshot["traffic"], env: Env, databaseReady: boolean): ServerNode {
   const usage = process.memoryUsage();
   const cpuPercent = processCpuPercent();
-  const loop = eventLoopP99Ms();
+  const loopWindow = eventLoopWindow();
+  const loop = loopWindow.p99Ms;
+  const uptimeSeconds = process.uptime();
   const pool = getPool();
   const load = os.loadavg();
   const load1 = load[0] ?? 0;
@@ -143,10 +164,15 @@ function fallbackNode(traffic: SystemSnapshot["traffic"], env: Env, databaseRead
     eventLoopP99Ms: loop,
     poolWaiting: pool.waitingCount,
     p95Ms: traffic.p95Ms,
+    sampleRequests: traffic.requests,
+    uptimeSeconds,
   });
 
   const facts: Array<{ label: string; value: string }> = [];
-  if (loop !== null) facts.push({ label: "event loop p99", value: `${round(loop)} ms` });
+  facts.push({
+    label: "event loop p99",
+    value: loop !== null ? `${round(loop)} ms` : "collecting",
+  });
   facts.push({
     label: "db pool",
     value: `${pool.totalCount} open · ${pool.waitingCount} waiting`,
@@ -167,7 +193,7 @@ function fallbackNode(traffic: SystemSnapshot["traffic"], env: Env, databaseRead
       : "This deployment is up, but its database query failed.",
     latencyMs: null,
     version: process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0",
-    uptimeSeconds: Math.round(process.uptime()),
+    uptimeSeconds: Math.round(uptimeSeconds),
     memory,
     cpu,
     database: databaseReady
@@ -275,6 +301,7 @@ async function probePrimary(env: Env): Promise<ServerNode> {
 
     const load = classifyLoad({
       cpuLoadPercent: metrics.cpu?.loadPercent ?? null,
+      uptimeSeconds: metrics.uptimeSeconds,
     });
     const facts: Array<{ label: string; value: string }> = [];
     const load1 = metrics.cpu?.load1 ?? null;
