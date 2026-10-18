@@ -48,7 +48,7 @@ const schema = z.object({
   APP_ENV: z.string().default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
-  NEXT_PUBLIC_SITE_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   API_BASE_URL: z.string().url().optional(),
 
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -64,9 +64,19 @@ const schema = z.object({
   JOBS_POLL_INTERVAL_MS: z.coerce.number().int().min(200).max(60_000).default(2_000),
   JOBS_WORKER_ENABLED: booleanish,
   RATE_LIMIT_DISABLED: booleanish,
+
+  // Optional. When set, `/api/initialize` requires it; when unset, that route
+  // may only set up a database that has no super-admin yet. An empty value in
+  // .env means "not set", like every other optional string here.
+  SETUP_TOKEN: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().min(8).optional(),
+  ),
 });
 
-export type Env = z.infer<typeof schema> & {
+export type Env = Omit<z.infer<typeof schema>, "NEXT_PUBLIC_SITE_URL"> & {
+  /** Always present: falls back to the hosting provider's URL, then localhost. */
+  NEXT_PUBLIC_SITE_URL: string;
   isProduction: boolean;
   isTest: boolean;
   googleConfigured: boolean;
@@ -100,14 +110,40 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     console.warn("[config] EMAIL_TRANSPORT=console in production; email delivery is logged only.");
   }
 
+  const resolvedSiteUrl = value.NEXT_PUBLIC_SITE_URL ?? derivedSiteUrl() ?? "http://localhost:3000";
+
   return {
     ...value,
+    NEXT_PUBLIC_SITE_URL: resolvedSiteUrl,
     isProduction,
     isTest: value.NODE_ENV === "test",
     googleConfigured,
     // Dev sign-in exists for local/preview use and is impossible in production.
     devSignInEnabled: !isProduction && value.ALLOW_DEV_SIGN_IN,
   };
+}
+
+/**
+ * The public origin, without requiring a variable that the host already knows.
+ * Render sets `RENDER_EXTERNAL_URL`; Vercel sets `VERCEL_PROJECT_PRODUCTION_URL`
+ * (production) and `VERCEL_URL` (each deployment). OAuth redirect URIs and
+ * cookies depend on this matching reality, so a custom domain still needs
+ * NEXT_PUBLIC_SITE_URL — a preview URL must not become the canonical one.
+ */
+function derivedSiteUrl(): string | null {
+  const candidates = [
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      return new URL(candidate).origin;
+    } catch {
+      /* ignore a malformed host-provided value */
+    }
+  }
+  return null;
 }
 
 export function getEnv(): Env {
@@ -120,6 +156,19 @@ export function resetEnvCache(): void {
   cached = null;
 }
 
+/**
+ * The canonical public origin, without validation.
+ *
+ * Metadata (`layout.tsx`, `sitemap.ts`, `robots.ts`) is evaluated during
+ * `next build`, where `NODE_ENV` is already `production` — calling `getEnv()`
+ * there would turn an unrelated configuration mistake (for example a stray
+ * `ALLOW_DEV_SIGN_IN=true` in a developer's `.env`) into a build failure.
+ * Configuration errors belong at runtime, where readiness reports them.
+ */
 export function siteUrl(): string {
-  return getEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  try {
+    return getEnv().NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
+  } catch {
+    return (process.env.NEXT_PUBLIC_SITE_URL ?? derivedSiteUrl() ?? "http://localhost:3000").replace(/\/$/, "");
+  }
 }

@@ -450,3 +450,14 @@ export interface SiteStats {
   confirmedAttendance: number;
   asOf: IsoDateTime;
 }
+
+export type MediaKind = (typeof import("./constants").MEDIA_KINDS)[number];
+
+export interface MediaAsset {
+  id: string;
+  kind: MediaKind;
+  url: string;
+  contentType: string;
+  byteSize: number;
+  createdAt: IsoDateTime;
+}

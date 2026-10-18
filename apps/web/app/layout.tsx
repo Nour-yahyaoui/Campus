@@ -3,14 +3,15 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/fraunces";
 import "./globals.css";
 import { PRODUCT } from "@campussphere/contracts";
+import { siteUrl } from "@campussphere/core";
 import { currentUser } from "@/lib/session";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const baseUrl = siteUrl();
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(baseUrl),
   title: {
     default: `${PRODUCT.name} — ${PRODUCT.tagline}`,
     template: `%s · ${PRODUCT.name}`,
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     siteName: PRODUCT.name,
     title: `${PRODUCT.name} — ${PRODUCT.tagline}`,
     description: PRODUCT.description,
-    url: siteUrl,
+    url: baseUrl,
   },
   twitter: {
     card: "summary_large_image",

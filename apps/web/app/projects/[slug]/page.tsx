@@ -68,6 +68,10 @@ export default async function ProjectDetailPage({
           {project.status !== "approved" ? <Tag tone="marigold">{project.status.replace("_", " ")}</Tag> : null}
           {project.visibility === "members" ? <Tag>Members only</Tag> : null}
         </div>
+        {project.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="cover-banner" src={project.coverUrl} alt="" width={1200} height={375} decoding="async" />
+        ) : null}
         <h1>{project.title}</h1>
         <p className="lede">{project.summary}</p>
       </div>
@@ -138,7 +142,7 @@ export default async function ProjectDetailPage({
           <div className="card">
             <h2 style={{ fontSize: "1.15rem" }}>Team</h2>
             <div className="member-row">
-              <Avatar name={project.lead.name} />
+              <Avatar name={project.lead.name} src={project.lead.avatarUrl} />
               <div>
                 <div className="small">{project.lead.name}</div>
                 <div className="tiny muted">Project lead</div>
@@ -146,7 +150,7 @@ export default async function ProjectDetailPage({
             </div>
             {project.members.filter((member) => member.role !== "lead").map((member) => (
               <div className="member-row" key={member.userId}>
-                <Avatar name={member.name} />
+                <Avatar name={member.name} src={member.avatarUrl} />
                 <div>
                   <div className="small">{member.name}</div>
                   <div className="tiny muted">Member</div>

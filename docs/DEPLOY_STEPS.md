@@ -1,4 +1,10 @@
-# Deploy CampusSphere, step by step
+# Deploy CampusSphere, step by step (full checklist)
+
+> **Just want it live?** Follow [`DEPLOY_QUICK.md`](DEPLOY_QUICK.md): one Render
+> service, three environment variables, and `/api/initialize` creates the
+> database schema and your super-admin. This longer runbook is the production
+> checklist — worker, fallback API, backups, monitoring, rollback — for the week
+> you invite real users.
 
 This is the ordered runbook for putting the build online. It assumes the
 repository you are reading, a Neon account, a Render account and a Google Cloud
@@ -17,10 +23,12 @@ verified in this workspace are labelled ✅; the rest is procedure.
 | `campussphere-worker` | Node + `tsx` | for email/reminders/cleanup | durable jobs; the web app only enqueues them |
 | `campussphere-rust-api` | Rust + Actix | optional for now | primary API, but it has never been compiled (see the launch checklist). Skip until CI is green. |
 
-**Cheapest sane setup:** Neon Free + web on Vercel Hobby (free) + fallback API
-and worker on Render Starter (~$7 each). The Rust API can wait.
-**Simplest setup:** everything except the database on Render (one dashboard,
-one `render.yaml`). The web app is included in the blueprint.
+**Simplest setup:** one Render web service plus Neon — see
+[`DEPLOY_QUICK.md`](DEPLOY_QUICK.md). Three environment variables, and
+`/api/initialize` creates the schema.
+**Cheapest sane setup with jobs:** that service, plus the worker (Render plans
+without background workers cannot run it). The fallback API and the Rust API can
+wait until you need them.
 
 ---
 
@@ -70,7 +78,12 @@ prints one row.
 
 ---
 
-## Step 2 — apply migrations from your machine
+## Step 2 — apply migrations from your machine (optional)
+
+> The app can do this itself: opening `/api/initialize` (Step 3) applies every
+> migration with the same ledger and checksums as this command. Use the CLI only
+> if you prefer to see the output, or need to migrate before the first deploy.
+
 
 Run these locally against the **direct** URL. The inline variable wins over
 `.env`, which is important: your local `.env` points at the local database.
@@ -98,6 +111,10 @@ this workspace against PostgreSQL 16. Neon runs 16/17, which is compatible.
 ---
 
 ## Step 3 — create the first super-admin
+
+> Also optional: `/api/initialize?email=you@university.edu` creates the account
+> with the same function this script calls. The CLI remains useful for automation.
+
 
 Do this before anyone signs in, so the first account is the owner, not a
 random early visitor. Same direct URL:
@@ -144,9 +161,140 @@ so the variable and the Google console must match exactly, including `https`.
 
 ---
 
+## Step 4b — image storage (your Neon bucket `campus`)
+
+Avatars, club logos/covers and project/event covers are uploaded straight from
+the browser to object storage. This project uses your existing **Neon Object
+Storage bucket `campus`**, which is S3-compatible. Database rows keep a stable
+`/media/<id>` URL, so the bucket host can change later without a data migration.
+
+You need four values and one decision.
+
+1. **Get the S3 endpoint for the branch you deploy against.**
+
+   ```bash
+   neon projects list                                   # find the project id
+   neon branches list --project-id <project-id>         # find the branch id
+   curl -s -H "Authorization: Bearer $NEON_API_KEY" \
+     "https://console.neon.tech/api/v2/projects/<project-id>/branches/<branch-id>/storage"
+   ```
+
+   The response contains `s3_endpoint`, `region` and `force_path_style`. Use the
+   **same branch** as your production database — storage credentials are
+   branch-bound, and objects created on one branch are copy-on-write against its
+   parent, not shared with it.
+
+2. **Create a storage credential pair.**
+
+   ```bash
+   neon credentials create --scope storage:read --scope storage:write
+   ```
+
+   It prints the access key id (shown as `token_id`) and a secret key **once**.
+   Map them to:
+
+   | Credential field | Environment variable |
+   | --- | --- |
+   | `token_id` | `AWS_ACCESS_KEY_ID` |
+   | `s3_secret_access_key` | `AWS_SECRET_ACCESS_KEY` |
+   | `s3_endpoint` | `AWS_ENDPOINT_URL_S3` |
+   | `region` | `AWS_REGION` |
+
+   If you use the Neon CLI you can also run `neon env pull`, which writes the
+   same `AWS_*` names into `.env`.
+
+3. **Allow the browser to upload to the bucket (CORS).** Uploads go straight
+   from the browser to the storage host, which is a different origin. Without a
+   CORS rule the browser blocks the PUT before it is sent, and the only symptom
+   is “the image did not reach storage” in the UI — nothing appears in the
+   server logs. Apply the rule with:
+
+   ```bash
+   # AWS_* exported or in .env, NEXT_PUBLIC_SITE_URL set to the deployed origin
+   NEXT_PUBLIC_SITE_URL=https://<your-web-domain> npm run storage:cors
+   ```
+
+   Expected output: `applied  GET,PUT,HEAD from https://<your-web-domain>`. Add
+   extra origins (a second domain, a staging site) with
+   `EXTRA_ORIGINS="https://a,https://b"`. Neon supports `PutBucketCors` and
+   handles the preflight automatically; S3 ACL/policy writes are not supported,
+   so bucket access level is set in the console, not here.
+
+4. **Decide how images are served.** Both settings work; pick one:
+
+   - **Private bucket (default).** Leave `STORAGE_PUBLIC_BASE_URL` unset.
+     `/media/<id>` answers `302` to a presigned URL valid for a few minutes, so
+     links cannot be shared forever and deleted images stop resolving.
+   - **`public_read` bucket.** Set
+     `STORAGE_PUBLIC_BASE_URL=https://<branch-id>.storage.c-<N>.<region>.aws.neon.tech/campus`
+     (the pattern Neon documents; confirm it by opening any uploaded object).
+     `/media/<id>` then redirects to that URL with a one-hour cache.
+
+   Changing the access level later is a bucket setting, not a code change.
+   Neon does not accept S3 ACL or bucket-policy calls (they return `501`), so set
+   the access level in the console/API.
+
+5. **Set these variables on every service that touches images** — the web
+   service **and** the worker (the worker deletes files for abandoned uploads):
+
+   ```
+   STORAGE_BUCKET=campus
+   AWS_ENDPOINT_URL_S3=<s3_endpoint>
+   AWS_REGION=<region>
+   AWS_ACCESS_KEY_ID=<token_id>
+   AWS_SECRET_ACCESS_KEY=<s3_secret_access_key>
+   S3_FORCE_PATH_STYLE=true
+   STORAGE_PUBLIC_BASE_URL=        # only for a public_read bucket
+   ```
+
+   In `render-full.yaml` these are already declared; `AWS_*` and
+   `STORAGE_PUBLIC_BASE_URL` are `sync: false`, so paste the values in the
+   Render dashboard. On Vercel, add them to the web project.
+
+6. **Verify after the deploy** — this is the part that proves storage works:
+
+   ```bash
+   # as a club president: Club → Manage → Images → Choose image
+   curl -sI https://<web>/media/<id-from-the-page-source> | head -5
+   # private bucket:  302 → https://<branch>.storage…/campus/…?X-Amz-Signature=…
+   # public_read:     302 → https://<branch>.storage…/campus/…
+   ```
+
+   Then replace the image once and confirm the old `/media/<id>` returns `404`
+   (the superseded object is deleted). In the browser, an upload shows
+   “Uploading…” then “Image saved.”; a CORS problem shows
+   “The image did not reach storage. Try again.”
+
+**Limits enforced by the app:** JPEG, PNG, WebP or AVIF; 5 MB per image; the
+bytes are checked against the file's magic number before anything is attached;
+30 upload requests/hour per user.
+
+**Local development:** leave all of it blank. The app falls back to a
+filesystem driver (`.data/uploads`), which the code refuses to use in
+production.
+
+**What is verified here and what is not.** The whole flow — presign → browser
+PUT → size/type/magic-byte verification → attach → `/media/<id>` redirect →
+replace → delete — runs in this repository two ways: against the local driver
+over HTTP, and against a local S3-compatible stub that the tests start
+themselves (`packages/core/test/s3-stub.ts`), which proves path-style URLs,
+presigned PUT/GET shape, `HeadObject`, ranged reads, deletes and the CORS
+round-trip. What has **not** been executed is Neon's real endpoint with real
+credentials: signature acceptance, bucket permissions and the exact public URL
+pattern are the parts only your deployment can confirm. If an upload fails,
+the troubleshooting table at the end of this document is ordered by likelihood.
+
+---
+
 ## Step 5 — deploy on Render
 
-The blueprint is [`deployment/render.yaml`](../deployment/render.yaml).
+**Quick path:** [`deployment/render.yaml`](../deployment/render.yaml) creates a
+single web service — that is all the product needs. The four-service topology
+described in this step lives in
+[`deployment/render-full.yaml`](../deployment/render-full.yaml); to use it,
+either copy it over `render.yaml` or point the Render Blueprint at that path.
+
+The full blueprint is [`deployment/render-full.yaml`](../deployment/render-full.yaml).
 
 1. Edit the placeholders **before** syncing. Replace every
    `https://campussphere.example.edu` with the URL the web service will have.
@@ -160,13 +308,13 @@ The blueprint is [`deployment/render.yaml`](../deployment/render.yaml).
 
 | Service | Variables |
 | --- | --- |
-| `campussphere-web` | `DATABASE_URL` (pooled), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| `campussphere-web` | `DATABASE_URL` (pooled), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AWS_*` + `STORAGE_PUBLIC_BASE_URL` if used (Step 4b) |
 | `campussphere-fallback-api` | `DATABASE_URL` (pooled) |
-| `campussphere-worker` | `DATABASE_URL` (pooled) |
+| `campussphere-worker` | `DATABASE_URL` (pooled), `AWS_*` (Step 4b) |
 | `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it |
 
 5. If you are **not** deploying the Rust API yet, delete its block from
-   `render.yaml` before applying (or suspend the service afterwards). It is
+   `render-full.yaml` before applying (or suspend the service afterwards). It is
    unproven; the fallback already serves reads.
 6. If you are on a plan without background workers, delete the worker block.
    Emails, reminders and cleanup will not run — `outbound_emails` rows will
@@ -186,7 +334,7 @@ What the blueprint already handles, and why:
 **Checkpoint after the first build:**
 
 ```bash
-curl -fsS https://<web>/api/health/ready          # {"status":"ok", …}
+curl -fsS https://<web>/api/health/ready          # {"status":"ok", …,"storage":{"driver":"s3",…}}
 curl -fsS https://<fallback>/health/ready         # {"status":"ok", …}
 curl -fsS "https://<fallback>/api/v1/clubs" | head -c 200
 curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<fallback>/api/v1/clubs \
@@ -221,6 +369,10 @@ still belong on Render.
    | `ALLOW_DEV_SIGN_IN` | `false` |
    | `DB_POOL_MAX` | `5` |
    | `EMAIL_TRANSPORT` | `console` until Step 8, then `resend` or `smtp` |
+   | `STORAGE_BUCKET` | `campus` |
+   | `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | from Step 4b |
+   | `S3_FORCE_PATH_STYLE` | `true` |
+   | `STORAGE_PUBLIC_BASE_URL` | only for a `public_read` bucket |
 
 5. Leave build/install commands at their defaults — Vercel detects the npm
    workspace and installs from the repository root.
@@ -251,12 +403,15 @@ Then in a browser:
 - [ ] A normal account visiting `/admin` is redirected to
       `/dashboard?denied=admin`; the super-admin from Step 3 gets a real `200`.
 - [ ] `/observatory` loads for the super-admin only.
+- [ ] Upload a club logo and a profile photo; both render, and replacing one
+      leaves the previous `/media/<id>` at `404` (Step 4b, point 5).
 - [ ] Create a club, submit a project proposal, approve it in `/admin`.
       Approving writes an audit row and enqueues an email job.
 - [ ] Headers: `curl -sI https://<web>/ | grep -iE "content-security|x-frame|strict-transport"`.
 
-✅ The role redirects, logout revocation, CSP/HSTS headers and rate limits were
-verified against the production build locally. The OAuth handshake with real
+✅ The role redirects, logout revocation, CSP/HSTS headers, rate limits and the
+upload flow (local storage driver) were verified against the production build
+and a running dev server. The OAuth handshake with real
 Google credentials is the one thing that can only be verified on your
 deployment.
 
@@ -354,6 +509,12 @@ SMTP instead: `EMAIL_TRANSPORT=smtp` and `SMTP_URL=smtps://user:pass@host:465`.
 | Sign-in loops back to `/login` | cookie rejected: HTTP origin, or `NEXT_PUBLIC_SITE_URL` on a different host | use HTTPS, one canonical host |
 | Migrations hang or fail on Neon | ran against the pooled URL | use the direct URL for `db:*` |
 | Health check times out on a free Neon plan | compute suspended, cold start | retry, raise the health-check timeout, or use a paid plan |
+| Uploads fail with "did not reach storage" | `AWS_*` missing, or the bucket/region/endpoint is wrong | check `curl -s https://<web>/api/health/ready` → `storage.driver` must be `s3`; recheck Step 4b |
+| Uploads fail with `403` from storage | credentials lack `storage:write`, or belong to another branch | recreate the credential pair with both scopes on the production branch |
+| Upload shows “did not reach storage”, no server log line | browser blocked the cross-origin PUT — no CORS rule, or the origin is not listed | run `NEXT_PUBLIC_SITE_URL=https://<web> npm run storage:cors`, then retry |
+| `npm run storage:cors` says storage is not configured | `AWS_*` missing in the shell or `.env` | export the four values (Step 4b, point 2) before running it |
+| An uploaded image 404s on other devices | the `complete` step never ran, so the object stayed `pending` | check `media_assets.status`; the hourly cleanup job removes abandoned rows |
+| Bucket is private but images do not load | `STORAGE_PUBLIC_BASE_URL` points at a non-public bucket | unset it and let `/media/<id>` issue presigned redirects |
 | Emails never arrive | worker not running, or console transport | deploy the worker; set Resend/SMTP (Step 8) |
 
 ---

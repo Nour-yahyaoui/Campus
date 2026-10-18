@@ -128,14 +128,19 @@ export async function many<T extends pg.QueryResultRow = pg.QueryResultRow>(
  * Runs work inside a transaction. The callback receives a dedicated client, so
  * every statement must use it rather than the shared pool.
  */
-export async function transaction<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+export async function transaction<T>(
+  work: (client: pg.PoolClient) => Promise<T>,
+  options: { statementTimeoutMs?: number } = {},
+): Promise<T> {
   const client = await getPool().connect();
   try {
     await client.query("begin");
     // SET LOCAL works on a direct connection and through a transaction-mode
     // pooler, unlike session-level SET. It scopes the limit to this
-    // transaction, which is exactly what we want.
-    await client.query("set local statement_timeout = 10000; set local lock_timeout = 5000;");
+    // transaction, which is exactly what we want. Schema creation is the one
+    // caller that needs longer, because a suspended Neon compute has to wake up.
+    const statementTimeout = Math.max(1_000, options.statementTimeoutMs ?? 10_000);
+    await client.query(`set local statement_timeout = ${statementTimeout}; set local lock_timeout = 5000;`);
     const result = await work(client);
     await client.query("commit");
     return result;

@@ -8,7 +8,8 @@ links to, written for operators and contributors rather than lawyers.
 
 | Data | Why | Retention |
 | --- | --- | --- |
-| Google subject, name, email, avatar URL, email-verified flag | identity and contact | until account deletion |
+| Google subject, name, email, Google avatar URL, email-verified flag | identity and contact | until account deletion |
+| Uploaded images (profile photo, club logo/cover, project/event cover) and their object keys | profile and club/project/event presentation | until replaced, deleted, or the account is deleted |
 | Bio (optional) | profile | until account deletion |
 | Club memberships, roles, join messages | participation | retained after deletion, author anonymised |
 | Project proposals, applications, tasks, milestones, updates | collaboration | retained after deletion, author anonymised |
@@ -22,6 +23,17 @@ links to, written for operators and contributors rather than lawyers.
 
 No passwords, payment data, precise location, contacts, or device fingerprints
 are stored. IP addresses are hashed before storage and are never displayed.
+
+**Uploaded images are stored in object storage, not in PostgreSQL.** Pages
+reference them as `/media/<id>`; the browser is then redirected to the bucket
+(or to a short-lived signed URL when the bucket is private), so the storage host
+appears in network requests but not in page markup. The app does not strip EXIF
+metadata:
+a photo taken on a phone may carry GPS coordinates. If that matters for your
+pilot, ask people to upload screenshots/resized copies, or add transcoding
+before launch (see the limitations in `docs/SECURITY.md`). Deleting an account
+removes that person's profile photo from storage; replacing any image deletes
+the previous object immediately.
 
 ## What is public
 

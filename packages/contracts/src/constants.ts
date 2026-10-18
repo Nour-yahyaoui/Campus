@@ -39,7 +39,16 @@ export const LIMITS = {
   reportDetails: 2_000,
   searchQuery: 120,
   requestBodyBytes: 128 * 1024,
+  imageBytes: 5 * 1024 * 1024,
 } as const;
+
+/**
+ * Image upload targets. Bytes live in S3-compatible object storage; the
+ * database only records which asset belongs to which page.
+ */
+export const MEDIA_KINDS = ["avatar", "club_logo", "club_cover", "project_cover", "event_cover"] as const;
+
+export const IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
 
 export const EVENT_CATEGORIES = [
   "academic",

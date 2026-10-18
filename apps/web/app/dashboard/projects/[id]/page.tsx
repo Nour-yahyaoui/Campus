@@ -7,6 +7,7 @@ import { clubsWhereOfficer, getProjectForMember, getProjectWorkspace } from "@ca
 import { currentUser } from "@/lib/session";
 import { formatDateTime, titleCase } from "@/lib/format";
 import { Avatar, Notice, Tag } from "@/components/Pieces";
+import { ImageUploader } from "@/components/ImageUploader";
 import {
   createMilestoneAction,
   createTaskAction,
@@ -67,6 +68,22 @@ export default async function ProjectWorkspacePage({
       {messages.ok ? <Notice>{messages.ok}</Notice> : null}
       {messages.error ? <Notice tone="danger">{messages.error}</Notice> : null}
 
+      {isLead ? (
+        <section className="card mt-2">
+          <h2 style={{ fontSize: "1.2rem" }}>Project image</h2>
+          <p className="small muted" style={{ marginTop: 0 }}>
+            The cover shown on the public project page and in listings.
+          </p>
+          <ImageUploader
+            kind="project_cover"
+            scopeId={project.id}
+            currentUrl={project.coverUrl}
+            label="Cover image"
+            hint="Wide image, about 16:9. JPEG, PNG, WebP or AVIF up to 5 MB."
+          />
+        </section>
+      ) : null}
+
       {(project.status === "draft" || project.status === "changes_requested" || project.status === "rejected") && isLead ? (
         <div className="callout">
           {project.status === "changes_requested"
@@ -94,7 +111,7 @@ export default async function ProjectWorkspacePage({
                 <div key={application.id} className="card card-flat" style={{ background: "var(--paper)" }}>
                   <div className="spread">
                     <div className="row" style={{ gap: 8 }}>
-                      <Avatar name={application.user.name} />
+                      <Avatar name={application.user.name} src={application.user.avatarUrl} />
                       <div>
                         <div className="small">{application.user.name}</div>
                         <div className="tiny muted">
@@ -133,7 +150,7 @@ export default async function ProjectWorkspacePage({
           <h2 style={{ fontSize: "1.2rem" }}>Team</h2>
           {workspace.members.map((member) => (
             <div key={member.userId} className="member-row">
-              <Avatar name={member.name} />
+              <Avatar name={member.name} src={member.avatarUrl} />
               <div style={{ flex: 1 }}>
                 <div className="small">{member.name}</div>
                 <div className="tiny muted">{member.role}</div>

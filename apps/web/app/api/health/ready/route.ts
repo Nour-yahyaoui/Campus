@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEnv, query } from "@campussphere/core";
+import { getEnv, query, storageInfo } from "@campussphere/core";
 
 export const dynamic = "force-dynamic";
 
@@ -33,5 +33,15 @@ export async function GET() {
   }
 
   const ok = Object.values(checks).every((check) => check.ok);
-  return NextResponse.json({ status: ok ? "ok" : "unavailable", checks }, { status: ok ? 200 : 503 });
+  // Storage is reported but does not gate readiness: a site without images is
+  // still usable, whereas a container that cannot reach Postgres is not.
+  const storage = storageInfo();
+  return NextResponse.json(
+    {
+      status: ok ? "ok" : "unavailable",
+      checks,
+      storage: { driver: storage.driver, bucket: storage.bucket, configured: storage.configured },
+    },
+    { status: ok ? 200 : 503 },
+  );
 }

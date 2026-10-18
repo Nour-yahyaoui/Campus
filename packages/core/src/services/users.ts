@@ -2,6 +2,7 @@ import type { Me } from "../auth";
 import { iso, isoRequired, many, one, query, transaction } from "../db";
 import { writeAudit } from "../audit";
 import { revokeAllSessions } from "../auth";
+import { deleteObject } from "../storage";
 import { badRequest, notFound } from "../errors";
 
 export async function updateProfile(me: Me, input: { name: string; bio?: string | null }): Promise<void> {
@@ -101,7 +102,20 @@ export async function exportMyData(me: Me): Promise<Record<string, unknown>> {
  * while honouring a deletion request; it is documented in docs/PRIVACY.md.
  */
 export async function requestDeletion(me: Me): Promise<{ retained: string[] }> {
+  // The avatar is the one uploaded file that belongs to the person rather than
+  // to a page. Clearing `users.avatar_url` alone would leave the object
+  // readable through `/media/<id>` for anyone who kept the link, so remove the
+  // object too — after the transaction commits, so storage I/O cannot hold a
+  // database lock.
+  const avatarAssets = await many<{ id: string; object_key: string }>(
+    "select id, object_key from media_assets where kind = 'avatar' and owner_id = $1 and status = 'ready'",
+    [me.id],
+  );
   await transaction(async (client) => {
+    await client.query(
+      "update media_assets set status = 'deleted', deleted_at = now() where kind = 'avatar' and owner_id = $1 and status = 'ready'",
+      [me.id],
+    );
     await client.query(
       `update users
           set status = 'deletion_requested',
@@ -121,6 +135,7 @@ export async function requestDeletion(me: Me): Promise<{ retained: string[] }> {
     );
   });
   await revokeAllSessions(me.id);
+  await Promise.all(avatarAssets.map((asset) => deleteObject(asset.object_key)));
   return {
     retained: [
       "Your posts, applications and registrations are kept but no longer show your name.",

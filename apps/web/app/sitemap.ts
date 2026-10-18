@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
-import { listClubs, listEvents, listProjects } from "@campussphere/core";
+import { listClubs, listEvents, listProjects, siteUrl } from "@campussphere/core";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const base = siteUrl();
   const entries: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: "daily", priority: 1 },
     { url: `${base}/clubs`, changeFrequency: "daily", priority: 0.9 },

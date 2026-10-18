@@ -57,8 +57,6 @@ export async function updateClubAction(formData: FormData): Promise<void> {
     tagline: nullable(formData, "tagline"),
     description: opt(formData, "description"),
     category: opt(formData, "category"),
-    logoUrl: nullable(formData, "logoUrl"),
-    coverUrl: nullable(formData, "coverUrl"),
     websiteUrl: nullable(formData, "websiteUrl"),
     contactEmail: nullable(formData, "contactEmail"),
     instagramUrl: nullable(formData, "instagramUrl"),

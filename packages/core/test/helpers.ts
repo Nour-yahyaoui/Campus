@@ -2,11 +2,31 @@ import { randomUUID } from "node:crypto";
 import { query } from "../src/db";
 import { createSession, devSignIn, type Me } from "../src/auth";
 
+/**
+ * Destructive guard at the point of destruction, not only in the global setup.
+ * Running a single test file from the repository root (for example
+ * `npx vitest run packages/core/test/media.test.ts`) skips
+ * `packages/core/vitest.config.ts`, so the setup file that points at the test
+ * database never runs and the suite would otherwise truncate the development
+ * database. This check makes that mistake loud instead of expensive.
+ */
+function assertTestDatabase(): void {
+  const url = process.env.DATABASE_URL ?? "";
+  const database = url.split("/").pop()?.split("?")[0] ?? "";
+  if (!database.endsWith("_test")) {
+    throw new Error(
+      `Refusing to truncate "${database || "<unset>"}": integration tests only run against a database whose name ends in _test. ` +
+        "Run them with `npm test --workspace @campussphere/core` (or `npm test` from the repository root).",
+    );
+  }
+}
+
 export async function resetDb(): Promise<void> {
+  assertTestDatabase();
   await query(`
     truncate table
       api_metrics, outbound_emails, jobs, rate_limit_counters, notifications,
-      moderation_reports, event_feedback, attendance_tokens, event_registrations,
+      media_assets, moderation_reports, event_feedback, attendance_tokens, event_registrations,
       event_organizers, events, project_updates, project_milestones, project_tasks,
       project_applications, project_members, project_roles, projects,
       announcements, club_memberships, clubs, oauth_states, sign_in_tickets,

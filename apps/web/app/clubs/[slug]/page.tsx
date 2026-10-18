@@ -56,8 +56,25 @@ export default async function ClubDetailPage({
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <Link href="/clubs">Clubs</Link> <span aria-hidden="true">/</span> <span>{club.name}</span>
         </nav>
+        {club.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="cover-banner" src={club.coverUrl} alt="" width={1200} height={375} decoding="async" />
+        ) : null}
         <div className="row" style={{ alignItems: "flex-start", gap: 16 }}>
-          <Monogram name={club.name} />
+          {club.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={club.logoUrl}
+              alt=""
+              width={48}
+              height={48}
+              loading="lazy"
+              decoding="async"
+              style={{ flex: "none", width: 48, height: 48, borderRadius: 13, objectFit: "cover", border: "1px solid var(--line)" }}
+            />
+          ) : (
+            <Monogram name={club.name} />
+          )}
           <div style={{ minWidth: 0 }}>
             <h1 style={{ marginBottom: 6 }}>{club.name}</h1>
             <p className="lede" style={{ marginBottom: 8 }}>
@@ -215,7 +232,7 @@ export default async function ClubDetailPage({
             ) : (
               club.officers.map((officer) => (
                 <div className="member-row" key={officer.userId}>
-                  <Avatar name={officer.name} />
+                  <Avatar name={officer.name} src={officer.avatarUrl} />
                   <div>
                     <div className="small">{officer.name}</div>
                     <div className="tiny muted">{officer.role}</div>

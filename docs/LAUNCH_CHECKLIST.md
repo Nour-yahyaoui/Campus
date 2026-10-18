@@ -12,8 +12,8 @@ unproven.
 | --- | --- | --- | --- |
 | 1 | Web and fallback production builds | ✅ verified | `npm run build` in `apps/web`, `apps/next-fallback`; `next start` smoke (12 web checks) and `npm run smoke` with the fallback (16 checks) green on 2026-10-18 |
 | 2 | TypeScript strict typecheck (4 workspaces) | ✅ verified | `npm run typecheck` |
-| 3 | Integration tests on real PostgreSQL | ✅ 59/59 | `npm test` (11 files) |
-| 4 | Migrations apply with checksum verification | ✅ 6/6 | `npm run db:migrate`, `db:status` |
+| 3 | Integration tests on real PostgreSQL | ✅ 88/88 | `npm test` (15 files) |
+| 4 | Migrations apply with checksum verification | ✅ 7/7 | `npm run db:migrate`, `db:status` |
 | 5 | Schema invariants | ✅ | `npm run db:verify` |
 | 6 | Rust fmt + Clippy + tests + release build | ⛔ **open** | no toolchain/crates.io here; CI job is defined but has never run |
 | 7 | `Cargo.lock` committed | ⛔ **open** | must run `cargo generate-lockfile` with network access |
@@ -43,6 +43,11 @@ unproven.
 | 26 | Data export and account deletion | ✅ integration test | export route rate-limited |
 | 27 | Maintenance mode blocks writes | ✅ integration test (boundary) | reads stay available |
 | 28 | Email delivery | ⛔ **open** | console transport only; configure SMTP/Resend and send a real message |
+| 28a | Image uploads (avatar, club logo/cover, project/event cover) | ✅ local driver, 🟡 S3 | presign → PUT → verify → attach → serve → supersede → delete exercised over HTTP against the dev server (10 tests) and against an S3-compatible stub covering path-style presigned PUT/GET, `HeadObject`, ranged reads, delete and CORS (7 tests). **Signature acceptance by Neon's real endpoint is unverified.** |
+| 28b | `/media/<id>` redirect to object storage | 🟡 stub only | public-URL and presigned-GET branches covered against the stub; no real bucket has been configured from here |
+| 28c | Bucket CORS applied from the app | 🟡 stub only | `npm run storage:cors` sends and reads back the rule; real Neon credentials not available here |
+| 27a | One-URL first-run setup (`/api/initialize`) | ✅ verified | on a brand-new empty database, both the dev server and the **production build** applied all 7 migrations and created a super-admin; a second visit returned `read-only` without writing; `SETUP_TOKEN` mode returned `401` without/with a wrong token and `200` with the right one; the HTML page escaped its inputs |
+| 27b | First-run window is closed once an admin exists | ✅ unit-tested | `decideAccess` refuses writes without a token after any super-admin exists; documented as a claim window in `docs/DEPLOY_QUICK.md` |
 
 ## Operations gates
 

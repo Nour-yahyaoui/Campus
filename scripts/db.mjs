@@ -5,7 +5,10 @@
  *   node scripts/db.mjs migrate   apply pending migrations (checksummed)
  *   node scripts/db.mjs status    show applied/pending migrations
  *   node scripts/db.mjs verify    assert schema invariants used by the app
- *   node scripts/db.mjs reset     drop and recreate the public schema (dev only)
+ *   node scripts/db.mjs reset     drop the public schema and apply every migration (dev only)
+ *
+ * `reset` leaves a usable, fully migrated schema. It does not seed: demo
+ * content is a separate decision (`npm run db:seed`).
  *
  * Any migration already applied is checksum-verified; editing an applied
  * migration is a release error, not a silent divergence between environments.
@@ -249,6 +252,9 @@ async function reset() {
   } finally {
     await client.end();
   }
+  // A reset that leaves an empty schema is a trap: the next command fails with
+  // `relation "settings" does not exist`. Re-apply migrations immediately.
+  await migrate();
 }
 
 await loadEnv();

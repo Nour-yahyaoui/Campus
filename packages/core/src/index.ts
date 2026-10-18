@@ -18,3 +18,6 @@ export * from "./services/search";
 export * from "./services/admin";
 export * from "./services/observatory";
 export * from "./services/settings";
+export * from "./services/media";
+export * from "./storage";
+export * from "./migrations";

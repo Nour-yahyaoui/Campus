@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getMaintenanceState } from "@campussphere/core";
+import { getMaintenanceState, siteUrl } from "@campussphere/core";
 import { requireSuperAdmin } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { Notice, Tag } from "@/components/Pieces";
@@ -59,7 +59,7 @@ export default async function AdminSettingsPage({
           <div className="fact"><dt>Google sign-in</dt><dd>{process.env.GOOGLE_CLIENT_ID ? "Configured" : "Not configured"}</dd></div>
           <div className="fact"><dt>Email transport</dt><dd>{process.env.EMAIL_TRANSPORT ?? "console"} {process.env.EMAIL_TRANSPORT === "console" || !process.env.EMAIL_TRANSPORT ? "· logs only, no delivery" : ""}</dd></div>
           <div className="fact"><dt>Development sign-in</dt><dd>{process.env.ALLOW_DEV_SIGN_IN === "true" && process.env.NODE_ENV !== "production" ? "Enabled (non-production)" : "Disabled"}</dd></div>
-          <div className="fact"><dt>Site URL</dt><dd>{process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}</dd></div>
+          <div className="fact"><dt>Site URL</dt><dd>{siteUrl()}</dd></div>
         </dl>
         <p className="hint">These are environment variables; change them in the hosting dashboard, not here.</p>
       </div>

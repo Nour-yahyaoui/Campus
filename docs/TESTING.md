@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | TypeScript typecheck (web, fallback, core, contracts) | `npm run typecheck` | ✅ passes |
 | Production builds (web, fallback) | `npm run build` | ✅ passes |
-| Integration tests (real PostgreSQL 16) | `npm test` | ✅ 59 tests / 11 files |
-| Migration checksums and application | `npm run db:migrate`, `npm run db:status` | ✅ 6/6 |
+| Integration tests (real PostgreSQL 16) | `npm test` | ✅ 88 tests / 15 files |
+| Migration checksums and application | `npm run db:migrate`, `npm run db:status` | ✅ 7/7 |
 | Schema invariants | `npm run db:verify` | ✅ passes |
 | Rust fmt/clippy/test/build | `cargo …` | ❌ **not run** — no toolchain/crates.io in this sandbox |
 | Browser end-to-end | Playwright | ❌ not implemented |
@@ -30,7 +30,11 @@ database whose name does not end in `_test`.
 | `observatory.test.ts` | measured metrics, explicit unavailable list, maintenance state transparency |
 | `ratelimit.test.ts` | limit enforcement and `retryAfterSeconds` |
 | `admin.test.ts` | super-admin gating, self-role/self-suspend guards, session revocation on admin removal, audit reason capture, maintenance boundary, moderation queue and resolution, append-only audit |
+| `initialize.test.ts` (web) | constant-time token comparison, the access matrix (first-run / read-only / denied), HTML escaping of the setup page |
 | `users-search.test.ts` | profile validation, export scoping, anonymising deletion, notification read state, public-only search, type scoping, short queries |
+| `media.test.ts` | upload authorization per kind, presign shape, magic-byte rejection, attach/supersede/delete, avatars, key-traversal guards, stale-pending cleanup — local driver |
+| `media-s3.test.ts` | the production path against a local S3-compatible stub started by the test: path-style presigned PUT, browser upload, `HeadObject`, ranged read for sniffing, presigned GET redirect, public base URL, delete, CORS round-trip |
+| `migrations.test.ts` | the schema-application functions `/api/initialize` calls: directory discovery, checksums, idempotent second run, ledger compatibility with the CLI |
 
 Notable assertions:
 
@@ -40,6 +44,21 @@ Notable assertions:
 - A non-organizer cannot check anyone in.
 - Unapproved projects and members-only projects never appear in public or search.
 - The audit table rejects `UPDATE` and `DELETE` at the database level.
+- An image is not attached to a club until its bytes have been verified; a text
+  file declared as `image/png` is rejected and the page keeps its old image.
+- Replacing an image deletes the previous object, and the old `/media/<id>`
+  stops resolving.
+
+**Running one file:** use the workspace script, not `npx vitest` from the
+repository root — the per-file form skips `packages/core/vitest.config.ts`, so
+the test-database setup never runs. The destructive helper now refuses to
+truncate a database whose name does not end in `_test`, but the intended command
+is:
+
+```bash
+npm test --workspace @campussphere/core                # everything
+npm test --workspace @campussphere/core -- media        # one file by name
+```
 
 ## Manual smoke matrix
 

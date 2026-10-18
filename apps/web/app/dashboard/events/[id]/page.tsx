@@ -12,6 +12,7 @@ import {
 import { currentUser } from "@/lib/session";
 import { formatDateRange, formatDateTime, titleCase } from "@/lib/format";
 import { Notice, Tag } from "@/components/Pieces";
+import { ImageUploader } from "@/components/ImageUploader";
 import {
   cancelEventAction,
   checkInAction,
@@ -76,6 +77,20 @@ export default async function EventManagePage({
 
       {messages.ok ? <Notice>{messages.ok}</Notice> : null}
       {messages.error ? <Notice tone="danger">{messages.error}</Notice> : null}
+
+      <section className="card mt-2">
+        <h2 style={{ fontSize: "1.2rem" }}>Event image</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Shown on the public event page. Organizers can change it at any time.
+        </p>
+        <ImageUploader
+          kind="event_cover"
+          scopeId={event.id}
+          currentUrl={event.coverUrl}
+          label="Cover image"
+          hint="Wide image, about 16:9. JPEG, PNG, WebP or AVIF up to 5 MB."
+        />
+      </section>
 
       <div className="stat-row">
         <div className="mini-stat"><b>{registered}</b><span>Registered</span></div>

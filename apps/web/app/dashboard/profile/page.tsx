@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/session";
-import { Notice } from "@/components/Pieces";
+import { Avatar, Notice } from "@/components/Pieces";
+import { ImageUploader } from "@/components/ImageUploader";
 import { requestDeletionAction, updateProfileAction } from "@/app/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 
@@ -21,13 +22,32 @@ export default async function ProfilePage({
     <div className="shell" style={{ maxWidth: 760 }}>
       <div className="page-head">
         <p className="eyebrow">Account</p>
-        <h1>Your profile</h1>
+        <div className="row" style={{ gap: 14, alignItems: "center" }}>
+          <Avatar name={me.name} src={me.avatarUrl} />
+          <h1 style={{ marginBottom: 0 }}>Your profile</h1>
+        </div>
         <p className="lede">This is how your name appears on applications, project teams and announcements.</p>
       </div>
       {messages.ok ? <Notice>{messages.ok}</Notice> : null}
       {messages.error ? <Notice tone="danger">{messages.error}</Notice> : null}
 
       <div className="card">
+        <h2 style={{ fontSize: "1.2rem" }}>Profile photo</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Shown next to your name on rosters and project pages. Stored in object storage, not in the
+          database, and only visible to people who can already see your name.
+        </p>
+        <ImageUploader
+          kind="avatar"
+          currentUrl={me.avatarUrl}
+          label="Your photo"
+          hint="Square images look best; cropping is done in the browser."
+          shape="avatar"
+          fallback={<Avatar name={me.name} />}
+        />
+      </div>
+
+      <div className="card mt-2">
         <h2 style={{ fontSize: "1.2rem" }}>Details</h2>
         <form action={updateProfileAction}>
           <div className="field">

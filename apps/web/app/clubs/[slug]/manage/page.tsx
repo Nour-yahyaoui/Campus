@@ -11,7 +11,8 @@ import {
 } from "@campussphere/core";
 import { requireUser } from "@/lib/session";
 import { formatDate, formatDateTime, categoryLabel } from "@/lib/format";
-import { Notice, Tag } from "@/components/Pieces";
+import { Monogram, Notice, Tag } from "@/components/Pieces";
+import { ImageUploader } from "@/components/ImageUploader";
 import { SubmitButton } from "@/components/SubmitButton";
 import {
   announceAction,
@@ -200,6 +201,31 @@ export default async function ManageClubPage({
         </p>
       </section>
 
+      <section className="card mt-3">
+        <h2 style={{ fontSize: "1.3rem" }}>Images</h2>
+        <p className="small muted" style={{ marginTop: 0 }}>
+          Uploaded straight to object storage and served from this site. JPEG, PNG, WebP or AVIF, up to 5 MB.
+        </p>
+        <div className="stack">
+          <ImageUploader
+            kind="club_logo"
+            scopeId={club.id}
+            currentUrl={club.logoUrl}
+            label="Club logo"
+            hint="Shown on the club page and in listings."
+            shape="avatar"
+            fallback={<Monogram name={club.name} />}
+          />
+          <ImageUploader
+            kind="club_cover"
+            scopeId={club.id}
+            currentUrl={club.coverUrl}
+            label="Cover image"
+            hint="A wide image (about 16:9) used as the banner on the club page."
+          />
+        </div>
+      </section>
+
       {isPresident ? (
         <section className="card mt-3">
           <h2 style={{ fontSize: "1.3rem" }}>Public profile</h2>
@@ -252,16 +278,10 @@ export default async function ManageClubPage({
                 <input className="input" id="instagramUrl" name="instagramUrl" type="url" defaultValue={club.instagramUrl ?? ""} placeholder="https://instagram.com/" />
               </div>
             </div>
-            <div className="form-grid two">
-              <div className="field">
-                <label htmlFor="logoUrl">Logo URL</label>
-                <input className="input" id="logoUrl" name="logoUrl" type="url" defaultValue={club.logoUrl ?? ""} />
-              </div>
-              <div className="field">
-                <label htmlFor="coverUrl">Cover URL</label>
-                <input className="input" id="coverUrl" name="coverUrl" type="url" defaultValue={club.coverUrl ?? ""} />
-              </div>
-            </div>
+            <p className="hint" style={{ marginTop: 0 }}>
+              Logo and cover images are uploaded in the Images card above. They are no longer URL fields,
+              so an image cannot silently point at another site.
+            </p>
             <SubmitButton className="btn btn-primary">Save profile</SubmitButton>
           </form>
         </section>

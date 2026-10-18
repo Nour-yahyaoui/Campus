@@ -45,6 +45,23 @@ pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl \
 Backups contain personal data. Encrypt at rest, restrict access, and delete on
 schedule.
 
+**A database dump does not contain uploaded images.** Avatars, club logos and
+covers, project covers and event covers live in object storage (the Neon bucket
+`campus`) and are referenced from the database by an opaque id (`/media/<id>`),
+not stored in it. Consequences:
+
+- Restoring a database into an empty environment leaves every image URL
+  resolving to `404` until objects are copied to that environment's bucket.
+- Keep the bucket in the same Neon project as the database where possible: Neon
+  branches the bucket copy-on-write, so a branch of production has the images
+  as of the branch point.
+- When copying objects between buckets, keep the key unchanged
+  (`<kind>/<scope>/<uuid>.<ext>`); `media_assets.object_key` is what maps a row
+  to a file.
+- A `404` from `/media/<id>` for a row whose `media_assets.status` is not
+  `ready` is expected: the upload was never completed and the cleanup job will
+  remove the row.
+
 ## Restore (rehearsed procedure — rehearse it in staging before you need it)
 
 ```bash

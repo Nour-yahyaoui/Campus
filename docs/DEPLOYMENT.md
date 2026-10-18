@@ -1,5 +1,9 @@
 # Deployment
 
+> **Quick path:** [`DEPLOY_QUICK.md`](DEPLOY_QUICK.md) — one service, three
+> variables, `/api/initialize` builds the schema and the first super-admin.
+> This document describes the full multi-service topology.
+
 Target topology: **Neon** (PostgreSQL) + **Render** (Rust API, fallback API,
 worker) + **Vercel** (web). Every service is stateless except the database, so
 any of them can be replaced without touching the schema.
@@ -73,7 +77,7 @@ The blueprint deploys the web app on Render too. If you prefer Vercel:
   names the missing variable when configuration is wrong, so use it as the
   deployment health check rather than `/`.
 
-On Render the equivalent service is in `deployment/render.yaml`: build
+On Render the equivalent service is in `deployment/render.yaml` (the one-service quick path) or `deployment/render-full.yaml`: build
 `npm ci --include=dev && npm run build --workspace @campussphere/web`, start
 `npm run start --workspace @campussphere/web` (it honours `$PORT`), health check
 `/api/health/ready`.
@@ -83,7 +87,7 @@ variable. They would be shipped to the browser.
 
 ## 3. Rust API — Render
 
-`deployment/render.yaml` declares the service. Or configure manually:
+`deployment/render-full.yaml` declares the services. Or configure manually:
 
 - Environment: Docker.
 - Dockerfile: `apps/rust-api/Dockerfile`, build context: repository root.
@@ -155,6 +159,12 @@ behaviour for an API whose write path depends on the primary.
 | `METRICS_RETENTION_DAYS` | no | default 30 |
 | `JOBS_POLL_INTERVAL_MS` | no | default 2000 |
 | `RATE_LIMIT_DISABLED` | no | must be `false` in production |
+| `STORAGE_BUCKET` | images | `campus` — the Neon Object Storage bucket |
+| `AWS_ENDPOINT_URL_S3` / `AWS_REGION` | images | from the Neon storage API for your branch |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | images | Neon storage credentials (`token_id` / `s3_secret_access_key`), scopes `storage:read` + `storage:write`; required on the web service **and** the worker |
+| `S3_FORCE_PATH_STYLE` | no | defaults to `true`, which Neon requires |
+| `STORAGE_PUBLIC_BASE_URL` | no | only for a `public_read` bucket; omit for private (presigned redirects) |
+| `STORAGE_DRIVER` | no | `auto` (default), `s3` or `local`; `local` is refused in production |
 | `NODE_ENV` | yes | `production` on all deployed Node services |
 
 Secrets belong in the hosting provider's secret store. `.env` files are for
@@ -167,6 +177,11 @@ failing mysteriously per request. Next.js still starts in a degraded state
 after that error, so the deploy health check must be `/api/health/ready`:
 it returns `503` until the configuration and database are usable, and it names
 the failing dependency (for example missing Google credentials in production).
+
+With no storage variables set, the app uses a local filesystem driver
+(`.data/uploads`); that path exists for development and for the single-machine
+demo, and is deliberately disabled in production. The upload flow is described
+in `docs/DEPLOY_STEPS.md` § Step 4b.
 
 To reproduce production behaviour locally, override the development `.env`
 values on the command line (they win over the file):
@@ -185,7 +200,7 @@ with zero non-200 responses (see `docs/LOAD_TEST_PLAN.md`).
 ## Verification after deploy
 
 ```bash
-curl -fsS https://<web>/api/health/ready
+curl -fsS https://<web>/api/health/ready   # includes storage.driver / bucket / configured
 curl -fsS https://<rust>/health/ready
 curl -fsS https://<fallback>/health/ready
 curl -fsS "https://<rust>/api/v1/clubs?limit=1"

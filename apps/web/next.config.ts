@@ -15,6 +15,13 @@ const config: NextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: "512kb" },
   },
+  // `/api/initialize` reads the .sql files at runtime to create the schema on a
+  // fresh database, so they must travel with the server build (Vercel traces
+  // only imported files; these are read from disk). Render runs from the
+  // repository, where the folder is already present.
+  outputFileTracingIncludes: {
+    "/api/initialize": ["../../migrations/**/*.sql"],
+  },
   async headers() {
     return [
       {

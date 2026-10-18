@@ -18,6 +18,7 @@ target/
 
 # generated / local runtime data
 var/
+.data/
 coverage/
 playwright-report/
 test-results/

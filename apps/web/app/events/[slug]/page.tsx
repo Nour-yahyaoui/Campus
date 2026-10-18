@@ -93,6 +93,10 @@ export default async function EventDetailPage({
           {event.status === "cancelled" ? <Tag tone="danger">Cancelled</Tag> : null}
           {ended ? <Tag>Finished</Tag> : null}
         </div>
+        {event.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="cover-banner" src={event.coverUrl} alt="" width={1200} height={375} decoding="async" />
+        ) : null}
         <h1>{event.title}</h1>
         <p className="lede">{event.summary}</p>
       </div>
@@ -264,7 +268,7 @@ export default async function EventDetailPage({
             <h2 style={{ fontSize: "1.15rem" }}>Organizers</h2>
             {event.organizers.map((organizer) => (
               <div className="member-row" key={organizer.id}>
-                <Avatar name={organizer.name} />
+                <Avatar name={organizer.name} src={organizer.avatarUrl} />
                 <div>
                   <div className="small">{organizer.name}</div>
                   <div className="tiny muted">{organizer.bio?.slice(0, 80) ?? "Organizer"}</div>

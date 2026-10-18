@@ -10,10 +10,15 @@ export function Monogram({ name, size }: { name: string; size?: "lg" }) {
   );
 }
 
-export function Avatar({ name }: { name: string }) {
+export function Avatar({ name, src }: { name: string; src?: string | null }) {
   return (
     <span className="avatar" aria-hidden="true">
-      {initials(name) || "?"}
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" width={34} height={34} loading="lazy" decoding="async" />
+      ) : (
+        initials(name) || "?"
+      )}
     </span>
   );
 }

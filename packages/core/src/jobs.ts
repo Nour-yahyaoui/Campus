@@ -3,6 +3,7 @@ import { getEnv } from "./env";
 import { many, one, query } from "./db";
 import { sendEmail } from "./email";
 import { pruneRateLimits } from "./ratelimit";
+import { cleanupStaleMedia } from "./services/media";
 
 /**
  * Durable job queue backed by PostgreSQL. Delivery-critical work (email,
@@ -165,6 +166,11 @@ async function handleCleanup(): Promise<void> {
     String(env.METRICS_RETENTION_DAYS),
   ]);
   await pruneRateLimits();
+  // Abandoned presigned uploads have no object or a stale pending row; either
+  // way they must not linger as dangling authorization records.
+  await cleanupStaleMedia().catch((error) => {
+    console.error("[jobs] media cleanup failed", error instanceof Error ? error.message : error);
+  });
   // Nobody still "registered" 24h after an event ended actually attended.
   await query(
     `update event_registrations r

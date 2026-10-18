@@ -68,6 +68,20 @@ not a client of them yet (see ARCHITECTURE.md).
 
 The fallback also serves a service index at `/` and `/api/v1`.
 
+### Web app routes (same origin as the pages)
+
+These are internal to `apps/web` and are what the browser actually calls.
+
+| Route | Purpose |
+| --- | --- |
+| `GET/POST /api/initialize` | first-run setup: applies pending migrations and optionally creates the first super-admin (`?email=`). Requires `?token=` when `SETUP_TOKEN` is set; read-only once a super-admin exists |
+| `POST /api/uploads` | authorizes an image upload and returns a presigned PUT (`{ mediaId, upload: { url, method, headers }, expiresIn }`) |
+| `PUT /api/uploads/body?key=…` | local-driver only (development); never reachable when object storage is configured |
+| `POST /api/uploads/:id/complete` | verifies size, content type and magic bytes, then attaches the image |
+| `DELETE /api/uploads/:id` | removes an image and clears the reference |
+| `GET /media/:id` | stable image URL: `302` to the public object URL or to a short-lived presigned URL, or streams the bytes for the local driver |
+| `GET /api/health/live`, `/api/health/ready` | liveness and readiness (database, configuration; storage is reported but does not gate) |
+
 ## Fallback semantics
 
 The fallback is **read-only by design**. A write returns:
