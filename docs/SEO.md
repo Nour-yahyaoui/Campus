@@ -11,7 +11,7 @@ Everything a crawler, an assistant or a link preview can use, and where it lives
 | Breadcrumb JSON-LD | detail pages | `breadcrumbs` in `lib/seo.ts` |
 | Listing JSON-LD (ItemList) | `/clubs`, `/events`, `/projects` | page components |
 | `robots.txt` | `/robots.txt` | `app/robots.txt/route.ts`, `lib/robots.ts` |
-| `sitemap.xml` | `/sitemap.xml` | `app/sitemap.xml/route.ts` |
+| `sitemap.xml` | `/sitemap.xml` | `app/sitemap.xml/route.ts`, `packages/core/src/services/sitemap.ts` |
 | `llms.txt` | `/llms.txt` | `app/llms.txt/route.ts` |
 | `llms-full.txt` | `/llms-full.txt` | `app/llms-full.txt/route.ts` |
 | RSS feed of events | `/rss.xml` | `app/rss.xml/route.ts` |
@@ -28,6 +28,12 @@ generated **per request**, not at build time. The build machine has no database,
 and `NEXT_PUBLIC_SITE_URL` is a runtime value — a build-time render produced a
 sitemap pointing at `localhost` with an empty catalogue. The routes carry
 `s-maxage` headers instead, so the CDN caches them for an hour.
+
+The sitemap reads the catalogue through `sitemapCatalogue()` in the core
+package, which is one query per entity type. It deliberately does **not** reuse
+`listClubs()`/`listEvents()`: those page at 48 rows, so an earlier version of the
+sitemap silently stopped at the 48th club. A sitemap that drops the rest of the
+catalogue tells a crawler that the rest does not exist.
 
 ## What is deliberately excluded
 

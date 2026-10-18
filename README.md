@@ -37,6 +37,10 @@ PostgreSQL. MIT licensed.
   visible focus, labelled forms, reduced-motion support, server-rendered public
   pages, canonical URLs, JSON-LD, sitemap, robots rules, RSS, `llms.txt`, per-page
   Open Graph metadata and Vercel Analytics. Details: [docs/SEO.md](docs/SEO.md).
+- **Perceived performance** — a skeleton for every route, a navigation progress
+  bar, pending states on every submit, retry panels with an automatic countdown,
+  an offline gate and error boundaries per surface. Details:
+  [docs/UI_STATES.md](docs/UI_STATES.md).
 
 ## Repository layout
 
