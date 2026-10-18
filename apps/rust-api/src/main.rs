@@ -308,7 +308,7 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(8080);
     let site_url = std::env::var("NEXT_PUBLIC_SITE_URL")
         .unwrap_or_else(|_| "http://localhost:3000".to_string());
-    let pool = campussphere_infrastructure::connect(&database_url, 10)
+    let pool = campussphere_infrastructure::connect_with_retry(&database_url, 10, 5)
         .await
         .map_err(|error| {
             eprintln!("Could not connect to PostgreSQL: {error}");

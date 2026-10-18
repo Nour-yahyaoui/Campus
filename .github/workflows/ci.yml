@@ -140,21 +140,20 @@ jobs:
           RUST_LOG: info
         run: |
           ./target/debug/campussphere-api > /tmp/api.log 2>&1 &
-          ready=""
-          for attempt in $(seq 1 40); do
-            if ready=$(curl -fsS http://127.0.0.1:8099/health/ready); then break; fi
-            sleep 1
+          status=0
+          # Print every response rather than aborting on the first one, so a
+          # failure says which endpoint broke and what it returned.
+          for path in /health/live /health/ready /api/v1/clubs /api/v1/events /api/v1/projects "/api/v1/search?q=robotics"; do
+            code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" || true)
+            echo "--- $path -> $code"
+            head -c 300 /tmp/body.json; echo
+            case "$code" in 2*) ;; *) status=1 ;; esac
           done
-          if [ -z "$ready" ]; then
-            echo "the API never became ready"; tail -40 /tmp/api.log; exit 1
+          if [ "$status" -ne 0 ]; then
+            echo "=== API log ==="; tail -60 /tmp/api.log
           fi
-          echo "ready: $ready"
-          echo "$ready" | grep -q '"status":"ok"'
-          curl -fsS http://127.0.0.1:8099/health/live
-          curl -fsS "http://127.0.0.1:8099/api/v1/clubs" | head -c 400; echo
-          curl -fsS "http://127.0.0.1:8099/api/v1/events" | head -c 400; echo
-          curl -fsS "http://127.0.0.1:8099/api/v1/projects" | head -c 400; echo
-          kill %1
+          kill %1 2>/dev/null || true
+          exit "$status"
 
   rust-image:
     name: Rust · container image builds

@@ -46,6 +46,31 @@ pub async fn connect(database_url: &str, max_connections: u32) -> StoreResult<Pg
     Ok(pool)
 }
 
+/// A suspended Neon branch or a container started at the same moment as its
+/// database can refuse the first connections. Retrying briefly keeps the
+/// service up instead of crash-looping until the platform gives up.
+pub async fn connect_with_retry(
+    database_url: &str,
+    max_connections: u32,
+    attempts: u32,
+) -> StoreResult<PgPool> {
+    let attempts = attempts.max(1);
+    let mut last_error: Option<StoreError> = None;
+    for attempt in 1..=attempts {
+        match connect(database_url, max_connections).await {
+            Ok(pool) => return Ok(pool),
+            Err(error) => {
+                tracing::warn!(attempt, attempts, error = %error, "database connection attempt failed");
+                last_error = Some(error);
+                if attempt < attempts {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+            }
+        }
+    }
+    Err(last_error.expect("the loop runs at least once"))
+}
+
 // Migrations are applied by exactly one process (`npm run db:migrate`, also
 // used by CI and deployment jobs). The API only reads the ledger: running
 // migrations from every instance would race and is explicitly avoided. The
@@ -161,9 +186,12 @@ pub async fn list_projects(pool: &PgPool, query: ProjectListQuery<'_>) -> StoreR
                u.id as lead_id, u.name as lead_name, u.avatar_url as lead_avatar,
                c.id as club_id, c.slug as club_slug, c.name as club_name,
                (select count(*) from project_members pm where pm.project_id = p.id) as member_count,
+               -- open seats: every role's slots minus its accepted applications,
+               -- floored at zero per role and summed. The parentheses matter —
+               -- this expression was once unbalanced and broke the whole query.
                (select coalesce(sum(greatest(r.slots - (
                     select count(*) from project_applications a
-                     where a.role_id = r.id and a.status = 'accepted')), 0)), 0)
+                     where a.role_id = r.id and a.status = 'accepted'), 0)), 0)
                   from project_roles r where r.project_id = p.id) as open_roles
           from projects p
           join users u on u.id = p.lead_id
