@@ -1,0 +1,77 @@
+# Temporary: this sandbox has no Rust toolchain and cannot reach crates.io, so
+# the GitHub runner is the only place the Rust workspace can be compiled. This
+# workflow captures fmt/clippy/build output into a file on the branch, which is
+# the only channel back. Delete it once the Rust API is green in CI.
+name: Rust diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Collect
+        run: |
+          set +e
+          out="$RUNNER_TEMP/diag.md"
+          echo "# Rust diagnostics" > "$out"
+          echo "" >> "$out"
+
+          echo "## cargo generate-lockfile" >> "$out"
+          cargo generate-lockfile > "$RUNNER_TEMP/lock.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```' >> "$out"
+          head -40 "$RUNNER_TEMP/lock.txt" >> "$out"
+          echo '```' >> "$out"
+
+          echo "## cargo fmt --check" >> "$out"
+          cargo fmt --all -- --check > "$RUNNER_TEMP/fmt.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```diff' >> "$out"
+          head -600 "$RUNNER_TEMP/fmt.txt" >> "$out"
+          echo '```' >> "$out"
+
+          echo "## cargo build -p campussphere-api" >> "$out"
+          cargo build -p campussphere-api --all-targets > "$RUNNER_TEMP/build.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```' >> "$out"
+          head -400 "$RUNNER_TEMP/build.txt" >> "$out"
+          echo '```' >> "$out"
+
+          echo "## cargo clippy" >> "$out"
+          cargo clippy --workspace --all-targets --all-features -- -D warnings > "$RUNNER_TEMP/clippy.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```' >> "$out"
+          head -300 "$RUNNER_TEMP/clippy.txt" >> "$out"
+          echo '```' >> "$out"
+
+          echo "## cargo test" >> "$out"
+          cargo test --workspace > "$RUNNER_TEMP/test.txt" 2>&1
+          echo "\`exit=$?\`" >> "$out"
+          echo '```' >> "$out"
+          tail -80 "$RUNNER_TEMP/test.txt" >> "$out"
+          echo '```' >> "$out"
+
+          cp "$out" rust-diag.md
+
+      - name: Publish
+        if: always()
+        run: |
+          git config user.name "rust-diagnostics"
+          git config user.email "actions@users.noreply.github.com"
+          git add rust-diag.md
+          git diff --cached --quiet || git commit -m "Rust diagnostics [skip ci]"
+          git push
