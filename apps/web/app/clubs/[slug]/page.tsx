@@ -8,6 +8,7 @@ import { Avatar, ClubCard, EventRow, Monogram, Notice, ProjectCard, Tag } from "
 import { joinClubAction, leaveClubAction } from "@/app/actions/clubs";
 import { reportAction } from "@/app/actions/moderation";
 import { SubmitButton } from "@/components/SubmitButton";
+import { breadcrumbJsonLd, clubJsonLd, jsonLdString } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,14 @@ export async function generateMetadata({
       title: club.name,
       description: club.tagline ?? `${club.name} on CampusSphere — ${club.description.slice(0, 150)}`,
       alternates: { canonical: `/clubs/${club.slug}` },
-      openGraph: { title: club.name, description: club.tagline ?? undefined, url: `/clubs/${club.slug}` },
+      openGraph: {
+        type: "profile",
+        title: club.name,
+        description: club.tagline ?? undefined,
+        url: `/clubs/${club.slug}`,
+        ...(club.logoUrl ? { images: [{ url: club.logoUrl, alt: `${club.name} logo` }] } : {}),
+      },
+      twitter: { card: "summary", title: club.name, description: club.tagline ?? undefined },
     };
   } catch {
     return { title: "Club not found" };
@@ -50,8 +58,18 @@ export default async function ClubDetailPage({
   const isOfficer = role === "officer" || role === "president";
   const membership = club.membership;
 
+  const structured = [
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Clubs", path: "/clubs" },
+      { name: club.name, path: `/clubs/${club.slug}` },
+    ]),
+    clubJsonLd(club),
+  ];
+
   return (
     <div className="shell">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(structured) }} />
       <div className="page-head">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <Link href="/clubs">Clubs</Link> <span aria-hidden="true">/</span> <span>{club.name}</span>

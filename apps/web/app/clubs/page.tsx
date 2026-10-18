@@ -4,12 +4,14 @@ import { categoryLabel } from "@/lib/format";
 import { listClubs } from "@campussphere/core";
 import { ClubCard, EmptyState, Pager } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
+import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Clubs",
   description:
     "Browse student clubs at your university: academic societies, cultural groups, sports teams, technology clubs and more.",
   alternates: { canonical: "/clubs" },
+  openGraph: { url: absolute("/clubs"), title: "Student clubs" },
 };
 
 
@@ -21,8 +23,13 @@ export default async function ClubsPage({
   const params = await searchParams;
   const clubs = await listClubs({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
 
+  const itemList = itemListJsonLd(
+    clubs.items.map((club) => ({ name: club.name, path: `/clubs/${club.slug}` })),
+  );
+
   return (
     <div className="shell">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }} />
       <div className="page-head">
         <p className="eyebrow">Community</p>
         <h1>Student clubs</h1>

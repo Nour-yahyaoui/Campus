@@ -4,11 +4,20 @@ import { PRODUCT } from "@campussphere/contracts";
 import { listClubs, listEvents, listProjects, siteStats } from "@campussphere/core";
 import { ClubCard, EventRow, ProjectCard, StatStrip } from "@/components/Pieces";
 import { numeric } from "@/lib/format";
+import { SITE, absolute } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: `${PRODUCT.name} — ${PRODUCT.tagline}`,
   description: PRODUCT.description,
   alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: absolute("/"),
+    siteName: PRODUCT.name,
+    title: `${PRODUCT.name} — ${PRODUCT.tagline}`,
+    description: PRODUCT.description,
+    locale: SITE.locale,
+  },
 };
 
 

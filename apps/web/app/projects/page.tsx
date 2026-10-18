@@ -4,12 +4,14 @@ import { categoryLabel } from "@/lib/format";
 import { listProjects } from "@campussphere/core";
 import { EmptyState, Pager, ProjectCard } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
+import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Projects",
   description:
     "Student projects that passed review: software, robotics, research, volunteering, campus improvements and more. Find a team to join.",
   alternates: { canonical: "/projects" },
+  openGraph: { url: absolute("/projects"), title: "Student projects" },
 };
 
 
@@ -21,8 +23,13 @@ export default async function ProjectsPage({
   const params = await searchParams;
   const projects = await listProjects({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
 
+  const itemList = itemListJsonLd(
+    projects.items.map((project) => ({ name: project.title, path: `/projects/${project.slug}` })),
+  );
+
   return (
     <div className="shell">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }} />
       <div className="page-head">
         <p className="eyebrow">Make something</p>
         <h1>Student projects</h1>

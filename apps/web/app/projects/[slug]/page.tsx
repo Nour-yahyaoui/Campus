@@ -8,6 +8,7 @@ import { Avatar, Notice, Tag } from "@/components/Pieces";
 import { applyToProjectAction, withdrawApplicationAction } from "@/app/actions/projects";
 import { reportAction } from "@/app/actions/moderation";
 import { SubmitButton } from "@/components/SubmitButton";
+import { breadcrumbJsonLd, jsonLdString, projectJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,14 @@ export async function generateMetadata({
       title: project.title,
       description: project.summary,
       alternates: { canonical: `/projects/${project.slug}` },
-      openGraph: { title: project.title, description: project.summary, url: `/projects/${project.slug}` },
+      openGraph: {
+        type: "article",
+        title: project.title,
+        description: project.summary,
+        url: `/projects/${project.slug}`,
+        ...(project.coverUrl ? { images: [{ url: project.coverUrl, alt: project.title }] } : {}),
+      },
+      twitter: { card: "summary_large_image", title: project.title, description: project.summary },
     };
   } catch {
     return { title: "Project not found" };
@@ -52,8 +60,18 @@ export default async function ProjectDetailPage({
   const isPublic = project.status === "approved" && project.visibility === "public";
   const myApplication = project.myApplication;
 
+  const structured = [
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Projects", path: "/projects" },
+      { name: project.title, path: `/projects/${project.slug}` },
+    ]),
+    projectJsonLd(project),
+  ];
+
   return (
     <div className="shell">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(structured) }} />
       <div className="page-head">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <Link href="/projects">Projects</Link> <span aria-hidden="true">/</span> <span>{project.title}</span>

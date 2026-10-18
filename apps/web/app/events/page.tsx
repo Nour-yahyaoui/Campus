@@ -5,12 +5,14 @@ import { categoryLabel } from "@/lib/format";
 import { listEvents } from "@campussphere/core";
 import { EmptyState, EventRow, Pager } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
+import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Events",
   description:
     "Upcoming talks, workshops, competitions, meetups and socials across campus — with capacity, waitlists and accessibility details.",
   alternates: { canonical: "/events" },
+  openGraph: { url: absolute("/events"), title: "Campus events" },
 };
 
 
@@ -29,8 +31,13 @@ export default async function EventsPage({
     limit: 15,
   });
 
+  const itemList = itemListJsonLd(
+    events.items.map((event) => ({ name: event.title, path: `/events/${event.slug}` })),
+  );
+
   return (
     <div className="shell">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(itemList) }} />
       <div className="page-head">
         <p className="eyebrow">What&apos;s on</p>
         <h1>Events</h1>

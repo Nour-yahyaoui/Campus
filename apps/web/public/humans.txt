@@ -1,0 +1,18 @@
+/* TEAM */
+  Maintainer: Nour Yahyaoui
+  Contact:    https://github.com/Nour-yahyaoui/Campus/issues
+  Location:   Tunis, Tunisia
+
+/* THANKS */
+  Open source: Next.js, React, PostgreSQL, Actix Web, sqlx, sqlite-adjacent friends
+
+/* SITE */
+  Name:       CampusSphere
+  Language:   English
+  Stack:      Next.js 16 · TypeScript · PostgreSQL · Rust (Actix) read API
+  Source:     https://github.com/Nour-yahyaoui/Campus
+  License:    MIT
+
+/* NOTE */
+  The product is a student community platform: clubs, projects and events.
+  Everything public is crawlable; see /robots.txt and /llms.txt.

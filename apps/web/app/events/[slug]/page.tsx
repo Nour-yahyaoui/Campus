@@ -8,6 +8,7 @@ import { Avatar, Notice, Tag } from "@/components/Pieces";
 import { cancelRegistrationAction, feedbackAction, registerAction } from "@/app/actions/events";
 import { reportAction } from "@/app/actions/moderation";
 import { SubmitButton } from "@/components/SubmitButton";
+import { breadcrumbJsonLd, eventJsonLd, jsonLdString } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ export async function generateMetadata({
         title: event.title,
         description: event.summary,
         url: `/events/${event.slug}`,
+        ...(event.coverUrl ? { images: [{ url: event.coverUrl, alt: event.title }] } : {}),
       },
+      twitter: { card: "summary_large_image", title: event.title, description: event.summary },
     };
   } catch {
     return { title: "Event not found" };
@@ -61,28 +64,21 @@ export default async function EventDetailPage({
   const full = spotsLeft !== null && spotsLeft === 0;
   const isOrganizer = Boolean(me && event.organizers.some((organizer) => organizer.id === me.id));
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Event",
-    name: event.title,
-    description: event.summary,
-    startDate: event.startsAt,
-    endDate: event.endsAt,
-    eventStatus: event.status === "cancelled" ? "https://schema.org/EventCancelled" : "https://schema.org/EventScheduled",
-    eventAttendanceMode: event.isOnline
-      ? "https://schema.org/OnlineEventAttendanceMode"
-      : "https://schema.org/OfflineEventAttendanceMode",
-    location: event.isOnline
-      ? { "@type": "VirtualLocation", url: event.onlineUrl ?? undefined }
-      : { "@type": "Place", name: event.venueName ?? "Campus venue", address: event.venueAddress ?? undefined },
-    organizer: event.club
-      ? { "@type": "Organization", name: event.club.name, url: `/clubs/${event.club.slug}` }
-      : undefined,
-  };
+  // Structured data lives in lib/seo so the sitemap, llms.txt and this page all
+  // describe the event the same way. Breadcrumbs make the hierarchy explicit.
+  const structured = [
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Events", path: "/events" },
+      { name: event.title, path: `/events/${event.slug}` },
+    ]),
+    eventJsonLd(event),
+  ];
+
 
   return (
     <div className="shell">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(structured) }} />
       <div className="page-head">
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <Link href="/events">Events</Link> <span aria-hidden="true">/</span> <span>{event.title}</span>
