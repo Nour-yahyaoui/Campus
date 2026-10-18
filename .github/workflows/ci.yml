@@ -147,10 +147,16 @@ jobs:
             code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" || true)
             echo "--- $path -> $code"
             head -c 300 /tmp/body.json; echo
-            case "$code" in 2*) ;; *) status=1 ;; esac
+            case "$code" in
+              2*) ;;
+              *) status=1; echo "::error title=$path returned $code::$(head -c 400 /tmp/body.json | tr '\n' ' ')" ;;
+            esac
           done
           if [ "$status" -ne 0 ]; then
             echo "=== API log ==="; tail -60 /tmp/api.log
+            # Annotations are readable through the checks API, which is the only
+            # log channel available to some tooling.
+            echo "::error title=API log::$(tail -6 /tmp/api.log | tr '\n' ' ' | cut -c1-600)"
           fi
           kill %1 2>/dev/null || true
           exit "$status"
