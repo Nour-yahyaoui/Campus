@@ -1,0 +1,28 @@
+[package]
+name = "campussphere-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CampusSphere primary JSON API (Rust + Actix Web)"
+
+[[bin]]
+name = "campussphere-api"
+path = "src/main.rs"
+
+[dependencies]
+campussphere-shared-types = { path = "../../crates/shared-types" }
+campussphere-application = { path = "../../crates/application" }
+campussphere-infrastructure = { path = "../../crates/infrastructure" }
+campussphere-security = { path = "../../crates/security" }
+campussphere-telemetry = { path = "../../crates/telemetry" }
+actix-web.workspace = true
+actix-cors.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+dotenvy.workspace = true

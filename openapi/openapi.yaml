@@ -1,0 +1,420 @@
+openapi: 3.1.0
+info:
+  title: CampusSphere API
+  version: 1.0.0
+  description: |
+    The versioned JSON contract for CampusSphere.
+
+    Two implementations exist:
+
+    - **Rust + Actix Web** (`apps/rust-api`) — the primary API. The routes
+      documented here are implemented there.
+    - **Next.js fallback** (`apps/next-fallback`) — an independently deployable,
+      read-only implementation of the same routes that returns `503` with a
+      clear `unavailable` error for mutations instead of pretending to succeed.
+
+    The web application currently reads through the shared TypeScript service
+    layer (`packages/core`), not over HTTP. That deviation and its migration
+    path are documented in `docs/ARCHITECTURE.md`.
+
+    All timestamps are ISO-8601 UTC. Lists are cursor-paginated and capped at
+    48 items per request. Errors share one envelope and never contain SQL,
+    stack traces, secrets or personal data belonging to another account.
+  license:
+    name: MIT
+    url: https://github.com/Nour-yahyaoui/Campus/blob/main/LICENSE
+  contact:
+    name: Nour Yahyaoui
+    url: https://github.com/Nour-yahyaoui/Campus
+servers:
+  - url: https://api.campussphere.example/api/v1
+    description: Primary Rust API (replace with your deployment URL)
+  - url: https://fallback-api.campussphere.example/api/v1
+    description: Read-only fallback API
+tags:
+  - name: Health
+  - name: Discovery
+  - name: Clubs
+  - name: Projects
+  - name: Events
+  - name: Search
+  - name: Account
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Does not touch the database or any external provider.
+      security: []
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service, version, uptimeSeconds]
+                properties:
+                  status: { type: string, const: ok }
+                  service: { type: string }
+                  version: { type: string }
+                  uptimeSeconds: { type: integer, minimum: 0 }
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Checks only critical dependencies with bounded timeouts.
+      security: []
+      responses:
+        "200":
+          description: Ready to serve traffic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok, unavailable] }
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        ok: { type: boolean }
+                        latencyMs: { type: integer }
+                        detail: { type: string }
+        "503":
+          description: A critical dependency is unavailable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HealthBody" }
+  /clubs:
+    get:
+      tags: [Clubs]
+      summary: List active clubs
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/ClubCategory"
+        - name: q
+          in: query
+          description: Case-insensitive match on name, tagline and description.
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200":
+          description: A page of clubs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ClubSummary" }
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List approved, public projects
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/ProjectCategory"
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200":
+          description: A page of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProjectSummary" }
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /events:
+    get:
+      tags: [Events]
+      summary: List published events
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: when
+          in: query
+          schema:
+            type: string
+            enum: [upcoming, past, all]
+            default: upcoming
+        - name: category
+          in: query
+          schema:
+            $ref: "#/components/schemas/EventCategory"
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200":
+          description: A page of events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EventSummary" }
+                  meta:
+                    $ref: "#/components/schemas/PageMeta"
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /search:
+    get:
+      tags: [Search]
+      summary: Search public clubs, projects and events
+      description: Queries shorter than two characters return an empty result set without scanning the database.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 120 }
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, clubs, projects, events]
+            default: all
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      query: { type: string }
+                      clubs:
+                        type: array
+                        items: { $ref: "#/components/schemas/ClubSummary" }
+                      projects:
+                        type: array
+                        items: { $ref: "#/components/schemas/ProjectSummary" }
+                      events:
+                        type: array
+                        items: { $ref: "#/components/schemas/EventSummary" }
+                      total: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+  /me:
+    get:
+      tags: [Account]
+      summary: Return the signed-in person
+      description: |
+        Accepts the opaque session token as an `Authorization: Bearer` header
+        (server-to-server) or as the HttpOnly `cs_session` cookie (browser).
+      responses:
+        "200":
+          description: The current account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/SessionUser" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: cs_session
+    bearerSession:
+      type: http
+      scheme: bearer
+      description: The same opaque session token, for server-to-server calls.
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Page size. Server-side maximum is 48.
+      schema: { type: integer, minimum: 1, maximum: 48, default: 12 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from `meta.nextCursor`.
+      schema: { type: string }
+  responses:
+    BadRequest:
+      description: The request failed validation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    Unauthorized:
+      description: No valid session
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+  schemas:
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - invalid_request
+                - unauthorized
+                - forbidden
+                - not_found
+                - conflict
+                - rate_limited
+                - unavailable
+                - internal_error
+            message: { type: string }
+            details: {}
+            correlationId: { type: string }
+    PageMeta:
+      type: object
+      required: [nextCursor]
+      properties:
+        nextCursor:
+          type: [string, "null"]
+    ClubCategory:
+      type: string
+      enum: [academic, arts, career, cultural, environment, media, sports, technology, volunteering, other]
+    ProjectCategory:
+      type: string
+      enum: [software, robotics, research, volunteering, gardening, creative, campus-improvement, entrepreneurship, other]
+    EventCategory:
+      type: string
+      enum: [academic, arts, career, community, competition, cultural, environment, sports, technology, other]
+    ClubRef:
+      type: object
+      required: [id, slug, name]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+    UserRef:
+      type: object
+      required: [id, name, avatarUrl]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        avatarUrl:
+          type: [string, "null"]
+    ClubSummary:
+      type: object
+      required: [id, slug, name, category, verified, membershipPolicy, memberCount, upcomingEventCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        tagline:
+          type: [string, "null"]
+        category: { $ref: "#/components/schemas/ClubCategory" }
+        logoUrl:
+          type: [string, "null"]
+        verified: { type: boolean }
+        membershipPolicy:
+          type: string
+          enum: [open, request, invite]
+        memberCount: { type: integer }
+        upcomingEventCount: { type: integer }
+    EventSummary:
+      type: object
+      required: [id, slug, title, summary, category, status, startsAt, endsAt, timezone, registeredCount, waitlistCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        category: { $ref: "#/components/schemas/EventCategory" }
+        status: { type: string, enum: [draft, submitted, approved, published, cancelled, completed, rejected] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timezone: { type: string }
+        venueName:
+          type: [string, "null"]
+        isOnline: { type: boolean }
+        capacity:
+          type: [integer, "null"]
+        registeredCount: { type: integer }
+        waitlistCount: { type: integer }
+        club:
+          oneOf:
+            - $ref: "#/components/schemas/ClubRef"
+            - type: "null"
+    ProjectSummary:
+      type: object
+      required: [id, slug, title, summary, category, status, openRoles, memberCount, lead]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        category: { $ref: "#/components/schemas/ProjectCategory" }
+        status: { type: string }
+        openRoles: { type: integer }
+        memberCount: { type: integer }
+        lead: { $ref: "#/components/schemas/UserRef" }
+        club:
+          oneOf:
+            - $ref: "#/components/schemas/ClubRef"
+            - type: "null"
+        approvedAt:
+          type: [string, "null"]
+          format: date-time
+    SessionUser:
+      type: object
+      required: [id, name, email, roles]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        roles:
+          type: array
+          items: { type: string, enum: [student, moderator, super_admin] }
+        avatarUrl:
+          type: [string, "null"]
+    HealthBody:
+      type: object
+      properties:
+        status: { type: string }
+        checks:
+          type: object
+          additionalProperties:
+            type: object

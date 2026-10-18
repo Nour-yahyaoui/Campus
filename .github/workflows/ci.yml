@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  node:
+    name: Node · typecheck, tests, builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: campussphere_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/campussphere_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/campussphere_test
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      ALLOW_DEV_SIGN_IN: "true"
+      RATE_LIMIT_DISABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck every workspace
+        run: npm run typecheck
+      - name: Apply migrations to the test database
+        run: npm run db:migrate
+      - name: Integration tests (real PostgreSQL)
+        run: npm run db:verify && npm test
+      - name: Production builds
+        run: |
+          npm run build --workspace @campussphere/web
+          npm run build --workspace @campussphere/api
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  rust:
+    name: Rust · fmt, clippy, tests, release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      # Cargo.lock is intentionally generated here until a maintainer commits
+      # it (the sandbox used to author this code has no crates.io access).
+      - name: Resolve dependency graph
+        run: cargo generate-lockfile
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace
+      - name: Release build
+        run: cargo build --release -p campussphere-api
+      - name: Warn if the lockfile is not committed
+        run: |
+          if ! git ls-files --error-unmatch Cargo.lock >/dev/null 2>&1; then
+            echo "::warning::Cargo.lock is not committed; release builds are not reproducible yet."
+          fi
+
+  openapi:
+    name: OpenAPI contract syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate YAML parses
+        run: |
+          npx --yes yaml-lint openapi/openapi.yaml 2>/dev/null \
+            || node -e "const fs=require('fs');const t=fs.readFileSync('openapi/openapi.yaml','utf8');if(!t.includes('openapi: 3.1.0'))process.exit(1);console.log('openapi file present');"

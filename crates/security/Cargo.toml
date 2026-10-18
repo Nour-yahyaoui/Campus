@@ -1,0 +1,12 @@
+[package]
+name = "campussphere-security"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2.workspace = true
+rand.workspace = true
+hex.workspace = true
+subtle.workspace = true
+uuid.workspace = true

@@ -1,0 +1,63 @@
+# Render blueprint. Replace the placeholder domains and database reference.
+# Nothing here has been deployed from this repository yet; treat it as a
+# configuration starting point, not evidence of a running service.
+services:
+  - type: web
+    name: campussphere-rust-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./apps/rust-api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeploy: false
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://campussphere.example.edu
+      - key: NODE_ENV
+        value: production
+      - key: RUST_LOG
+        value: info
+
+  - type: web
+    name: campussphere-fallback-api
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci && npm run build --workspace @campussphere/api
+    startCommand: npm run start --workspace @campussphere/api
+    healthCheckPath: /health/ready
+    autoDeploy: false
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_POOL_MAX
+        value: "3"
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://campussphere.example.edu
+      - key: ALLOW_DEV_SIGN_IN
+        value: "false"
+
+  - type: worker
+    name: campussphere-worker
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm run worker
+    autoDeploy: false
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_POOL_MAX
+        value: "2"
+      - key: NODE_ENV
+        value: production
+      - key: EMAIL_TRANSPORT
+        value: console
+      - key: JOBS_POLL_INTERVAL_MS
+        value: "2000"

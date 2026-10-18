@@ -1,0 +1,19 @@
+[package]
+name = "campussphere-application"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+campussphere-shared-types = { path = "../shared-types" }
+campussphere-domain = { path = "../domain" }
+campussphere-infrastructure = { path = "../infrastructure" }
+campussphere-security = { path = "../security" }
+sqlx.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+base64 = "0.22"
+actix-web.workspace = true
+thiserror.workspace = true

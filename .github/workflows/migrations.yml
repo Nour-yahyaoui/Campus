@@ -1,0 +1,44 @@
+name: Migrations
+
+on:
+  pull_request:
+    paths:
+      - "migrations/**"
+      - "scripts/db.mjs"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Fresh database applies cleanly
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: campussphere
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/campussphere
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:status
+      - run: npm run db:verify
+      - name: Re-running the runner must be a no-op
+        run: npm run db:migrate
+      - name: Applied migrations must not change
+        run: git diff --exit-code -- migrations

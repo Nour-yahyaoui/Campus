@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/shared-types",
+  "crates/domain",
+  "crates/security",
+  "crates/telemetry",
+  "crates/infrastructure",
+  "crates/application",
+  "apps/rust-api",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+authors = ["Nour Yahyaoui"]
+repository = "https://github.com/Nour-yahyaoui/Campus"
+
+[workspace.dependencies]
+actix-web = "4.9"
+actix-cors = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate", "macros"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+sha2 = "0.10"
+rand = "0.8"
+hex = "0.4"
+subtle = "2.6"
+dotenvy = "0.15"

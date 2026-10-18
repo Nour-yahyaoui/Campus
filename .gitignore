@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+target/
+
+# local environment
+.env
+.env.local
+.env.*.local
+
+# generated / local runtime data
+var/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+
+# editor
+.vscode/
+.idea/

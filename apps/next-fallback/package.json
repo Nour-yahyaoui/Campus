@@ -1,0 +1,26 @@
+{
+  "name": "@campussphere/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 4000 --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --port 4000 --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campussphere/contracts": "*",
+    "@campussphere/core": "*",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

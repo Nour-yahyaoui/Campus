@@ -1,0 +1,34 @@
+{
+  "name": "campussphere",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CampusSphere \u2014 a free, open-source university community platform",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/web",
+    "apps/next-fallback"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @campussphere/web",
+    "dev:api": "npm run dev --workspace @campussphere/api",
+    "build": "npm run build --workspace @campussphere/api && npm run build --workspace @campussphere/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "node scripts/db.mjs migrate",
+    "db:status": "node scripts/db.mjs status",
+    "db:seed": "tsx --env-file=.env scripts/seed.mjs",
+    "db:reset": "node scripts/db.mjs reset",
+    "db:verify": "node scripts/db.mjs verify",
+    "admin:bootstrap": "tsx --env-file=.env scripts/bootstrap-superadmin.mjs",
+    "worker": "tsx --env-file=.env scripts/worker.ts",
+    "smoke": "node scripts/smoke.mjs",
+    "load": "node scripts/load.mjs"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
