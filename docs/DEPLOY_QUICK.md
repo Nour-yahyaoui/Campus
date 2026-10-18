@@ -83,6 +83,23 @@ super-admin. Create your first club or approve the first project from `/admin`.
 
 Visiting the URL again is safe: it reports status and changes nothing.
 
+### Optional: fill it with a demo campus first
+
+An empty product is hard to judge. Add `&demo=light` and the same URL also
+inserts a small, realistic catalogue — 12 clubs, 12 projects, 40 events (some
+awaiting review), 68 people and their memberships and registrations:
+
+```
+https://<your-app-url>/api/initialize?demo=light
+```
+
+It runs in about a second, in one transaction, and only on a database whose
+catalogue is still empty; a second call reports that it is already there. It can
+never create a super-admin, so `&email=` still works afterwards — do the demo
+first, then your account, or combine both in one URL. Remove the demo with
+`node scripts/db.mjs reset`, or leave it: demo people are on
+`@students.example.edu`, which cannot sign in.
+
 ### Optional: lock the setup URL
 
 The first visit is open only while **no super-admin exists**, then the route goes

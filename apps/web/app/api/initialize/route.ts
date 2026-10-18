@@ -4,7 +4,9 @@ import {
   bootstrapSuperAdmin,
   getEnv,
   migrationStatus,
+  seedDemoData,
   siteUrl,
+  type DemoSeedResult,
 } from "@campussphere/core";
 import { decideAccess, escapeHtml, readDatabaseState, type DatabaseState } from "@/lib/initialize";
 
@@ -24,6 +26,7 @@ interface Summary {
   migrations?: { appliedNow: string[]; total: number; pending: string[]; source?: "filesystem" | "embedded" };
   admin?: { email: string; created: boolean } | null;
   adminError?: string | null;
+  demo?: DemoSeedResult | { error: string } | null;
   nextSteps?: string[];
   siteUrl?: string;
 }
@@ -48,6 +51,7 @@ async function handle(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const providedToken = url.searchParams.get("token") ?? request.headers.get("x-setup-token");
   const email = (url.searchParams.get("email") ?? "").trim().toLowerCase();
+  const demoParam = url.searchParams.get("demo");
 
   const before = await readDatabaseState();
   const access = decideAccess({
@@ -78,6 +82,21 @@ async function handle(request: Request): Promise<Response> {
     });
   }
 
+  // `?demo=light` fills a first-run database with a small, realistic catalogue
+  // so a deployment can be looked at without a shell. It is opt-in, one-shot and
+  // unavailable once a catalogue exists (see `seedDemoData`).
+  const demoChoice = demoParam?.trim().toLowerCase() ?? "";
+  const prefersNoDemo = ["", "0", "false", "no"].includes(demoChoice);
+  const prefersDemo = ["light", "1", "true", "yes", "demo", "full"].includes(demoChoice);
+  if (!prefersNoDemo && !prefersDemo) {
+    return respond(request, 400, {
+      ok: false,
+      mode: "write",
+      message: `Unknown demo selection "${demoParam}". Use ?demo=light, or leave the parameter out.`,
+      nextSteps: ["Remove the demo parameter to set up an empty database."],
+    });
+  }
+
   // Write path: apply migrations first, because creating the admin needs the
   // users table.
   let appliedNow: string[] = [];
@@ -102,6 +121,19 @@ async function handle(request: Request): Promise<Response> {
     });
   }
 
+  let demo: Summary["demo"] = null;
+  if (prefersDemo) {
+    try {
+      demo = await seedDemoData();
+    } catch (error) {
+      console.error("[initialize] demo seed failed", error);
+      demo = {
+        error:
+          "The demo catalogue could not be inserted, so nothing was changed. This is usually a database timeout — retry in a few seconds.",
+      };
+    }
+  }
+
   let admin: { email: string; created: boolean } | null = null;
   let adminError: string | null = null;
   if (email) {
@@ -115,11 +147,12 @@ async function handle(request: Request): Promise<Response> {
 
   const after = await readDatabaseState().catch(() => before);
   const status = await migrationStatus().catch(() => null);
+  const demoSeeded = Boolean(demo && "seeded" in demo && demo.seeded);
 
   return respond(request, 200, {
-    ok: Boolean(appliedNow.length) || Boolean(admin) || after.superAdmins > 0,
+    ok: Boolean(appliedNow.length) || Boolean(admin) || after.superAdmins > 0 || demoSeeded,
     mode: "write",
-    changed: Boolean(appliedNow.length || admin),
+    changed: Boolean(appliedNow.length || admin || demoSeeded),
     state: { schemaReady: after.schemaReady, superAdmins: after.superAdmins },
     migrations: {
       appliedNow,
@@ -129,11 +162,17 @@ async function handle(request: Request): Promise<Response> {
     },
     admin,
     adminError,
+    demo,
     nextSteps: admin
       ? [`Open /login and sign in with Google as ${admin.email}.`]
       : after.superAdmins > 0
         ? ["Sign in at /login with your super-admin account."]
-        : ["Add &email=you@university.edu to this URL and reload to create the first super-admin."],
+        : [
+            "Add &email=you@university.edu to this URL and reload to create the first super-admin.",
+            ...(demoSeeded
+              ? ["Browse /clubs and /events — the demo catalogue is live and the first-run window stays open until you re-run this URL with your email."]
+              : []),
+          ],
     siteUrl: siteUrl(),
   });
 }
@@ -177,6 +216,19 @@ function renderPage(status: number, body: Summary): string {
     rows.push(
       `<li><strong>Super-admin</strong> — ${escapeHtml(body.admin.email)} ${body.admin.created ? "created" : "granted"}</li>`,
     );
+  }
+  if (body.demo) {
+    if ("error" in body.demo) rows.push(`<li class="err">${escapeHtml(body.demo.error)}</li>`);
+    else if (body.demo.seeded)
+      rows.push(
+        `<li><strong>Demo catalogue</strong> — ${body.demo.counts.clubs} clubs, ${body.demo.counts.events} events, ${body.demo.counts.projects} projects, ${body.demo.counts.users} people</li>`,
+      );
+    else
+      rows.push(
+        `<li><strong>Demo catalogue</strong> — skipped: ${
+          body.demo.reason === "already-seeded" ? "already present" : "this database already has a catalogue"
+        }</li>`,
+      );
   }
 
   const steps = (body.nextSteps ?? []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");

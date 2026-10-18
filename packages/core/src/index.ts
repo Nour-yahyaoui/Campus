@@ -22,3 +22,4 @@ export * from "./services/media";
 export * from "./services/sitemap";
 export * from "./storage";
 export * from "./migrations";
+export * from "./demo";

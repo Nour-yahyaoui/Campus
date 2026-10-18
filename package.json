@@ -25,6 +25,7 @@
     "db:reset": "node scripts/db.mjs reset",
     "db:verify": "node scripts/db.mjs verify",
     "db:embed-migrations": "node scripts/embed-migrations.mjs",
+    "db:embed-demo": "node scripts/embed-demo.mjs",
     "storage:cors": "tsx --env-file-if-exists=.env scripts/storage-cors.ts",
     "admin:bootstrap": "tsx --env-file-if-exists=.env scripts/bootstrap-superadmin.mjs",
     "worker": "tsx --env-file-if-exists=.env scripts/worker.ts",
