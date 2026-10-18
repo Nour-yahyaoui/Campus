@@ -256,9 +256,9 @@ body {
 
 .site-backdrop__orb {
   position: absolute;
-  /* Off-centre on purpose: the orb is a light source from the right edge, not
-     a badge behind the middle of the reading column. */
-  left: 70%;
+  /* A little right of centre: enough to sit off the reading column, close
+     enough that the sphere still reads as one object. */
+  left: 55%;
   top: 42%;
   width: min(118vmin, 980px);
   aspect-ratio: 1;
@@ -281,8 +281,6 @@ body {
 @media (max-width: 640px) {
   .site-backdrop__orb {
     top: 34%;
-    /* A narrower screen would otherwise push most of the orb off the edge. */
-    left: 66%;
   }
 }
 
@@ -911,6 +909,38 @@ hr {
   font-size: 0.78rem;
   color: var(--ink-muted);
   letter-spacing: 0.02em;
+}
+
+/* The pixel logo across the top of a stat cell. `currentColor` does double
+   duty: the mosaic is drawn in it, and the wash behind is mixed from it, so
+   one rule per kind defines the whole tile. */
+.stat-banner {
+  padding-top: 0;
+}
+
+.stat > .pixel-banner {
+  display: grid;
+  place-items: center;
+  height: 58px;
+  margin: 0 -18px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, currentColor 9%, var(--surface-subtle));
+}
+
+.pixel-banner[data-kind="clubs"] {
+  color: color-mix(in oklab, var(--forest) 74%, var(--ink));
+}
+
+.pixel-banner[data-kind="projects"] {
+  color: var(--marigold);
+}
+
+.pixel-banner[data-kind="events"] {
+  color: color-mix(in oklab, var(--monogram-3) 74%, var(--ink));
+}
+
+.pixel-banner[data-kind="users"] {
+  color: color-mix(in oklab, var(--monogram-4) 74%, var(--ink));
 }
 
 @media (min-width: 700px) {

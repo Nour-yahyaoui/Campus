@@ -52,10 +52,10 @@ export default async function AboutPage() {
 
       <StatStrip
         items={[
-          { label: "Clubs", value: numeric(stats.clubs) },
-          { label: "Projects", value: numeric(stats.projects) },
-          { label: "Events", value: numeric(stats.events) },
-          { label: "Checked-in attendees", value: numeric(stats.confirmedAttendance) },
+          { label: "Clubs", value: numeric(stats.clubs), art: "clubs" },
+          { label: "Projects", value: numeric(stats.projects), art: "projects" },
+          { label: "Events", value: numeric(stats.events), art: "events" },
+          { label: "Checked-in attendees", value: numeric(stats.confirmedAttendance), art: "users" },
         ]}
       />
 

@@ -101,10 +101,10 @@ async function HeroStats() {
     <div className="stream-in">
       <StatStrip
         items={[
-          { label: "Active clubs", value: numeric(stats.clubs) },
-          { label: "Approved projects", value: numeric(stats.projects) },
-          { label: "Published events", value: numeric(stats.events) },
-          { label: "Students & staff", value: numeric(stats.members) },
+          { label: "Active clubs", value: numeric(stats.clubs), art: "clubs" },
+          { label: "Approved projects", value: numeric(stats.projects), art: "projects" },
+          { label: "Published events", value: numeric(stats.events), art: "events" },
+          { label: "Students & staff", value: numeric(stats.members), art: "users" },
         ]}
       />
     </div>

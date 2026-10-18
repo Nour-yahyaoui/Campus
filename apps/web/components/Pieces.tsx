@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { PixelBanner } from "@/components/PixelBanner";
+import type { BannerKind } from "@/lib/banner";
 import type { ClubSummary, EventSummary, ProjectSummary } from "@campussphere/contracts";
 import { categoryLabel, dayMonth, formatDateRange, formatRelative, initials, monogramClass, numeric } from "@/lib/format";
 
@@ -154,12 +156,13 @@ export function Pager({
 export function StatStrip({
   items,
 }: {
-  items: Array<{ label: string; value: string; hint?: string }>;
+  items: Array<{ label: string; value: string; hint?: string; art?: BannerKind }>;
 }) {
   return (
     <div className="stats-strip">
       {items.map((item) => (
-        <div className="stat" key={item.label}>
+        <div className={item.art ? "stat stat-banner" : "stat"} key={item.label}>
+          {item.art ? <PixelBanner kind={item.art} /> : null}
           <b>{item.value}</b>
           <span>{item.label}</span>
         </div>
