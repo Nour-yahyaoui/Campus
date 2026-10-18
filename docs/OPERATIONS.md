@@ -155,7 +155,7 @@ last good reading on screen (clearly labelled as stale) if a check fails.
 | **Next.js (fallback)** | In-process: `process.memoryUsage()`, CPU time delta, event-loop delay (`perf_hooks`), pg pool state, `os.loadavg()` |
 | **Actix (primary)** | `GET $API_BASE_URL/health/metrics`, which reads `/proc/self/status`, `/proc/self/stat`, `/proc/loadavg` and the cgroup memory limit |
 
-The verdict (*idle / light / busy / under load*) is computed from CPU, event-loop
+The verdict (*warming up / idle / light / busy / under load*) is computed from CPU, event-loop
 delay, pool waiters and the API's p95 latency over the last five minutes. Every
 verdict names the signal that produced it.
 
