@@ -30,9 +30,14 @@ pub async fn connect(database_url: &str, max_connections: u32) -> StoreResult<Pg
             Box::pin(async move {
                 // Bound every statement so one slow query cannot hold a
                 // connection or a request indefinitely.
-                sqlx::query("set statement_timeout = 10000; set lock_timeout = 5000")
-                    .execute(connection)
-                    .await?;
+                //
+                // One statement per query: sqlx prepares these, and PostgreSQL
+                // rejects multiple commands in a prepared statement ("cannot
+                // insert multiple commands into a prepared statement"), which
+                // fails after_connect and every connection with it.
+                for statement in ["set statement_timeout = 10000", "set lock_timeout = 5000"] {
+                    sqlx::query(statement).execute(&mut *connection).await?;
+                }
                 Ok(())
             })
         })

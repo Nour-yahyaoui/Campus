@@ -97,6 +97,65 @@ jobs:
         working-directory: apps/rust-api
         run: cargo build --release --locked -p campussphere-api
 
+  rust-runtime:
+    name: Rust · boots and serves against PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: campussphere
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply the schema
+        run: |
+          for file in migrations/*.sql; do
+            echo "applying $file"
+            psql "postgresql://postgres:postgres@127.0.0.1:5432/campussphere" \
+              -v ON_ERROR_STOP=1 -q -f "$file"
+          done
+      - name: Build
+        working-directory: apps/rust-api
+        run: cargo build --locked -p campussphere-api
+      # Compiling is not the same as working. This starts the real binary
+      # against a real database and fails on a non-2xx, which is exactly the
+      # class of bug (pool after_connect) that reached Render once.
+      - name: Boot and probe
+        working-directory: apps/rust-api
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/campussphere
+          PORT: "8099"
+          RUST_LOG: info
+        run: |
+          ./target/debug/campussphere-api > /tmp/api.log 2>&1 &
+          ready=""
+          for attempt in $(seq 1 40); do
+            if ready=$(curl -fsS http://127.0.0.1:8099/health/ready); then break; fi
+            sleep 1
+          done
+          if [ -z "$ready" ]; then
+            echo "the API never became ready"; tail -40 /tmp/api.log; exit 1
+          fi
+          echo "ready: $ready"
+          echo "$ready" | grep -q '"status":"ok"'
+          curl -fsS http://127.0.0.1:8099/health/live
+          curl -fsS "http://127.0.0.1:8099/api/v1/clubs" | head -c 400; echo
+          curl -fsS "http://127.0.0.1:8099/api/v1/events" | head -c 400; echo
+          curl -fsS "http://127.0.0.1:8099/api/v1/projects" | head -c 400; echo
+          kill %1
+
   rust-image:
     name: Rust · container image builds
     runs-on: ubuntu-latest
