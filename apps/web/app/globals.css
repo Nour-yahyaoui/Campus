@@ -1701,3 +1701,204 @@ table.data tr:last-child td {
 .sk-hero-card {
   min-height: 260px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Navigation affordances                                             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * While a navigation is in flight the browser says so: the pointer becomes a
+ * progress cursor over the page and the bar at the top edge fills. The bar has
+ * a leading dot so it reads as "moving", not as a decorative stripe.
+ */
+
+html[data-navigating] {
+  cursor: progress;
+}
+
+html[data-navigating] a,
+html[data-navigating] button,
+html[data-navigating] [role="button"] {
+  cursor: progress;
+}
+
+.route-progress {
+  height: 3px;
+  background: color-mix(in srgb, var(--forest) 10%, transparent);
+}
+
+.route-progress > span {
+  position: relative;
+  background: linear-gradient(90deg, var(--forest) 0%, var(--marigold) 92%);
+  box-shadow: 0 0 14px rgba(184, 100, 31, 0.4);
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+
+.route-progress > span::after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #fffdf8;
+  box-shadow: 0 0 0 2px var(--marigold), 0 0 12px rgba(184, 100, 31, 0.75);
+  transition: opacity 0.16s ease;
+}
+
+.route-progress[data-done="true"] > span {
+  opacity: 0;
+}
+
+.route-progress[data-done="true"] > span::after {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-navigating],
+  html[data-navigating] a,
+  html[data-navigating] button {
+    cursor: auto;
+  }
+  .route-progress > span {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Typography polish                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Balanced headings stop a single orphaned word on the last line; `pretty`
+   keeps paragraphs from ending in a lone word. Both are progressive — older
+   browsers simply ignore them. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--marigold) 28%, transparent);
+  color: var(--ink);
+}
+
+.page-head {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 26px;
+}
+
+.page-head h1 {
+  letter-spacing: -0.022em;
+}
+
+.page-head .lede {
+  margin-bottom: 4px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Streaming sections                                                 */
+/* ------------------------------------------------------------------ */
+
+/* Content that replaces a skeleton lands with a short lift rather than a jump. */
+.stream-in {
+  animation: stream-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-in {
+    animation: none;
+  }
+}
+
+/* Section-level skeleton shapes that mirror the streamed blocks. */
+.sk-snapshot {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.sk-snapshot-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+}
+
+.sk-snapshot-row > div {
+  min-width: 0;
+}
+
+.sk-stats {
+  margin: 28px 0 8px;
+}
+
+.sk-stats .stat {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sk-rail {
+  padding: 2px 0 6px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Design gallery (/dev/states)                                       */
+/* ------------------------------------------------------------------ */
+
+.demo-frame {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  padding: 4px 0 12px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.demo-frame .sk-shell {
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+
+.demo-track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.demo-track > span {
+  display: block;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: linear-gradient(90deg, var(--forest), var(--marigold));
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+}
+
+.demo-track > span[data-done="true"] {
+  opacity: 0;
+}

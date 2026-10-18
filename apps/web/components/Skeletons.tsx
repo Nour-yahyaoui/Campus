@@ -364,3 +364,59 @@ export function GenericPageSkeleton() {
     </SkeletonShell>
   );
 }
+
+/**
+ * The right-hand snapshot column of the home hero: three stacked "mini" cards.
+ * Used as a Suspense fallback so the headline paints immediately and the live
+ * numbers arrive underneath it.
+ */
+export function HeroSnapshotSkeleton() {
+  return (
+    <div className="sk-snapshot" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Loading today&apos;s campus numbers…</span>
+      {[0, 1, 2].map((index) => (
+        <div className="sk-snapshot-row" key={index}>
+          <Bar width={58} height={58} radius={16} />
+          <div style={{ flex: 1 }}>
+            <Bar width={index === 0 ? "70%" : "54%"} height={16} />
+            <Bar width="40%" height={12} style={{ marginTop: 8 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The four-number strip under the hero. */
+export function StatsStripSkeleton() {
+  return (
+    <div className="stats-strip sk-stats" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Loading catalogue totals…</span>
+      {[0, 1, 2, 3].map((index) => (
+        <div className="stat" key={index}>
+          <Bar width={72} height={30} radius={8} />
+          <Bar width={104} height={12} style={{ marginTop: 10 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A section heading with its cards, for streaming a whole rail below the fold. */
+export function RailSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="sk-rail" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">Loading…</span>
+      <div className="grid-3">
+        {Array.from({ length: count }, (_, index) => (
+          <div className="sk-card" key={index}>
+            <Bar width={44} height={44} radius={12} />
+            <Bar width="72%" height={18} style={{ marginTop: 14 }} />
+            <Bar width="90%" height={12} style={{ marginTop: 10 }} />
+            <Bar width="60%" height={12} style={{ marginTop: 6 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

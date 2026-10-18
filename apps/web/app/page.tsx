@@ -1,8 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PRODUCT } from "@campussphere/contracts";
 import { listClubs, listEvents, listProjects, siteStats } from "@campussphere/core";
 import { ClubCard, EventRow, ProjectCard, StatStrip } from "@/components/Pieces";
+import {
+  ClubCardsSkeleton,
+  EventRowsSkeleton,
+  HeroSnapshotSkeleton,
+  ProjectCardsSkeleton,
+  StatsStripSkeleton,
+} from "@/components/Skeletons";
 import { numeric } from "@/lib/format";
 import { SITE, absolute } from "@/lib/seo";
 
@@ -20,17 +28,156 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * The home page streams.
+ *
+ * The headline, the section headings and the closing panel are static, so the
+ * first byte carries the whole shape of the page. Each block that needs the
+ * database sits in its own Suspense boundary with a skeleton that matches its
+ * real layout: on a warm lambda the swap is imperceptible, on a cold one (or a
+ * phone on a train) the page still arrives in the first 200 ms and fills itself
+ * in section by section instead of holding a blank screen.
+ */
 
-export default async function HomePage() {
-  const [clubs, events, projects, stats] = await Promise.all([
-    listClubs({ limit: 3 }).catch(() => ({ items: [], nextCursor: null })),
-    listEvents({ limit: 4, when: "upcoming" }).catch(() => ({ items: [], nextCursor: null })),
-    listProjects({ limit: 3 }).catch(() => ({ items: [], nextCursor: null })),
-    siteStats().catch(() => ({ clubs: 0, projects: 0, events: 0, members: 0, confirmedAttendance: 0, asOf: new Date().toISOString() })),
+async function HeroSnapshot() {
+  const [stats, events] = await Promise.all([
+    siteStats().catch(() => ({ clubs: 0, projects: 0, events: 0, members: 0, confirmedAttendance: 0, asOf: "" })),
+    listEvents({ limit: 1, when: "upcoming" }).catch(() => ({ items: [], nextCursor: null })),
   ]);
-
   const nextEvent = events.items[0];
 
+  return (
+    <div className="hero-art stream-in" aria-label="A preview of campus activity">
+      <div className="hero-mini">
+        <div className="date-chip">
+          <span className="month">Live</span>
+          <span className="day">{stats.clubs}</span>
+        </div>
+        <div>
+          <strong>Clubs already listed</strong>
+          <span>Each with a public mini-site</span>
+        </div>
+      </div>
+      {nextEvent ? (
+        <div className="hero-mini">
+          <div className="date-chip alt">
+            <span className="month">Next</span>
+            <span className="day">{new Date(nextEvent.startsAt).getDate()}</span>
+          </div>
+          <div>
+            <strong className="clamp-2">{nextEvent.title}</strong>
+            <span>{nextEvent.club?.name ?? "Campus event"}</span>
+          </div>
+        </div>
+      ) : null}
+      <div className="hero-mini">
+        <div className="date-chip">
+          <span className="month">Team</span>
+          <span className="day">{stats.projects}</span>
+        </div>
+        <div>
+          <strong>Approved projects</strong>
+          <span>Reviewed before they go public</span>
+        </div>
+      </div>
+      <p className="tiny muted" style={{ margin: 0 }}>
+        These counters read from this deployment&apos;s database. Nothing here is simulated.
+      </p>
+    </div>
+  );
+}
+
+async function HeroStats() {
+  const stats = await siteStats().catch(() => ({
+    clubs: 0,
+    projects: 0,
+    events: 0,
+    members: 0,
+    confirmedAttendance: 0,
+    asOf: "",
+  }));
+
+  return (
+    <div className="stream-in">
+      <StatStrip
+        items={[
+          { label: "Active clubs", value: numeric(stats.clubs) },
+          { label: "Approved projects", value: numeric(stats.projects) },
+          { label: "Published events", value: numeric(stats.events) },
+          { label: "Students & staff", value: numeric(stats.members) },
+        ]}
+      />
+    </div>
+  );
+}
+
+async function UpcomingEvents() {
+  const events = await listEvents({ limit: 4, when: "upcoming" }).catch(() => ({
+    items: [],
+    nextCursor: null,
+  }));
+
+  if (events.items.length === 0) {
+    return (
+      <div className="empty">
+        <h3>No published events yet</h3>
+        <p className="small">When organizers publish an approved event, it appears here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card card-flat stream-in">
+      {events.items.map((event) => (
+        <EventRow key={event.id} event={event} />
+      ))}
+    </div>
+  );
+}
+
+async function OpenClubs() {
+  const clubs = await listClubs({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
+
+  if (clubs.items.length === 0) {
+    return (
+      <div className="empty">
+        <h3>No clubs listed yet</h3>
+        <p className="small">A super-admin seeds the first clubs for a pilot.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid-3 stream-in">
+      {clubs.items.map((club) => (
+        <ClubCard key={club.id} club={club} />
+      ))}
+    </div>
+  );
+}
+
+async function OpenProjects() {
+  const projects = await listProjects({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
+
+  if (projects.items.length === 0) {
+    return (
+      <div className="empty">
+        <h3>No approved projects yet</h3>
+        <p className="small">Students and clubs can propose a project from their dashboard.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid-3 stream-in">
+      {projects.items.map((project) => (
+        <ProjectCard key={project.id} project={project} />
+      ))}
+    </div>
+  );
+}
+
+export default function HomePage() {
   return (
     <>
       <section className="hero">
@@ -57,53 +204,14 @@ export default async function HomePage() {
                 Free and open source · Google sign-in only when you apply, join or register
               </p>
             </div>
-            <div className="hero-art" aria-label="A preview of campus activity">
-              <div className="hero-mini">
-                <div className="date-chip">
-                  <span className="month">Live</span>
-                  <span className="day">{stats.clubs}</span>
-                </div>
-                <div>
-                  <strong>Clubs already listed</strong>
-                  <span>Each with a public mini-site</span>
-                </div>
-              </div>
-              {nextEvent ? (
-                <div className="hero-mini">
-                  <div className="date-chip alt">
-                    <span className="month">Next</span>
-                    <span className="day">{new Date(nextEvent.startsAt).getDate()}</span>
-                  </div>
-                  <div>
-                    <strong className="clamp-2">{nextEvent.title}</strong>
-                    <span>{nextEvent.club?.name ?? "Campus event"}</span>
-                  </div>
-                </div>
-              ) : null}
-              <div className="hero-mini">
-                <div className="date-chip">
-                  <span className="month">Team</span>
-                  <span className="day">{stats.projects}</span>
-                </div>
-                <div>
-                  <strong>Approved projects</strong>
-                  <span>Reviewed before they go public</span>
-                </div>
-              </div>
-              <p className="tiny muted" style={{ margin: 0 }}>
-                These counters read from this deployment&apos;s database. Nothing here is simulated.
-              </p>
-            </div>
+            <Suspense fallback={<HeroSnapshotSkeleton />}>
+              <HeroSnapshot />
+            </Suspense>
           </div>
 
-          <StatStrip
-            items={[
-              { label: "Active clubs", value: numeric(stats.clubs) },
-              { label: "Approved projects", value: numeric(stats.projects) },
-              { label: "Published events", value: numeric(stats.events) },
-              { label: "Students & staff", value: numeric(stats.members) },
-            ]}
-          />
+          <Suspense fallback={<StatsStripSkeleton />}>
+            <HeroStats />
+          </Suspense>
         </div>
       </section>
 
@@ -119,18 +227,9 @@ export default async function HomePage() {
               All events
             </Link>
           </div>
-          {events.items.length === 0 ? (
-            <div className="empty">
-              <h3>No published events yet</h3>
-              <p className="small">When organizers publish an approved event, it appears here.</p>
-            </div>
-          ) : (
-            <div className="card card-flat">
-              {events.items.map((event) => (
-                <EventRow key={event.id} event={event} />
-              ))}
-            </div>
-          )}
+          <Suspense fallback={<EventRowsSkeleton count={4} />}>
+            <UpcomingEvents />
+          </Suspense>
         </div>
       </section>
 
@@ -146,18 +245,9 @@ export default async function HomePage() {
               All clubs
             </Link>
           </div>
-          {clubs.items.length === 0 ? (
-            <div className="empty">
-              <h3>No clubs listed yet</h3>
-              <p className="small">A super-admin seeds the first clubs for a pilot.</p>
-            </div>
-          ) : (
-            <div className="grid-3">
-              {clubs.items.map((club) => (
-                <ClubCard key={club.id} club={club} />
-              ))}
-            </div>
-          )}
+          <Suspense fallback={<ClubCardsSkeleton count={3} />}>
+            <OpenClubs />
+          </Suspense>
         </div>
       </section>
 
@@ -173,18 +263,9 @@ export default async function HomePage() {
               All projects
             </Link>
           </div>
-          {projects.items.length === 0 ? (
-            <div className="empty">
-              <h3>No approved projects yet</h3>
-              <p className="small">Students and clubs can propose a project from their dashboard.</p>
-            </div>
-          ) : (
-            <div className="grid-3">
-              {projects.items.map((project) => (
-                <ProjectCard key={project.id} project={project} />
-              ))}
-            </div>
-          )}
+          <Suspense fallback={<ProjectCardsSkeleton count={3} />}>
+            <OpenProjects />
+          </Suspense>
         </div>
       </section>
 
