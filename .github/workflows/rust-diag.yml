@@ -6,12 +6,16 @@ name: Rust diagnostics
 
 on:
   workflow_dispatch:
+  push:
+    branches: ["arena/d7dcb538-campus"]
 
 permissions:
   contents: write
 
 jobs:
   diag:
+    # The run itself commits its report; that commit must not start another run.
+    if: ${{ !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
