@@ -17,3 +17,4 @@ uuid.workspace = true
 base64 = "0.22"
 actix-web.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
