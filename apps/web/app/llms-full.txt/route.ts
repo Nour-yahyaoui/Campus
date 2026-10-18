@@ -40,6 +40,8 @@ export async function GET() {
     );
   }
 
+  if (clubs.items.length === 0) lines.push("No clubs have been published yet.", "");
+
   lines.push("## Projects", "");
   for (const project of projects.items) {
     lines.push(
@@ -53,6 +55,8 @@ export async function GET() {
     );
   }
 
+  if (projects.items.length === 0) lines.push("No projects have been published yet.", "");
+
   lines.push("## Upcoming events", "");
   for (const event of events.items) {
     lines.push(
@@ -65,6 +69,8 @@ export async function GET() {
       "",
     );
   }
+
+  if (events.items.length === 0) lines.push("No upcoming events have been published yet.", "");
 
   lines.push(`Last generated: ${new Date().toISOString()}`, "");
 

@@ -84,6 +84,12 @@ export async function GET() {
     lines.push("");
   }
 
+  // A fresh deployment has a schema but no content. Saying so is more useful to
+  // a reader than an empty heading, and it keeps this file honest about state.
+  if (clubs.items.length + projects.items.length + events.items.length === 0) {
+    lines.push("No clubs, projects or events have been published yet.", "");
+  }
+
   lines.push(
     "## Optional",
     "",
