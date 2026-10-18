@@ -1,0 +1,367 @@
+# Deploy CampusSphere, step by step
+
+This is the ordered runbook for putting the build online. It assumes the
+repository you are reading, a Neon account, a Render account and a Google Cloud
+account. Every command is copy-paste ready; replace the values in `<…>`.
+
+Nothing here has been executed against your accounts. The parts that *were*
+verified in this workspace are labelled ✅; the rest is procedure.
+
+**What you are deploying**
+
+| Service | Runtime | Needed? | Why |
+| --- | --- | --- | --- |
+| `campussphere-web` | Next.js 16 | yes | the product itself |
+| PostgreSQL (Neon) | Postgres 16/17 | yes | everything persists here |
+| `campussphere-fallback-api` | Next.js route handlers | strongly recommended | read-only JSON API used as a failover and by external readers |
+| `campussphere-worker` | Node + `tsx` | for email/reminders/cleanup | durable jobs; the web app only enqueues them |
+| `campussphere-rust-api` | Rust + Actix | optional for now | primary API, but it has never been compiled (see the launch checklist). Skip until CI is green. |
+
+**Cheapest sane setup:** Neon Free + web on Vercel Hobby (free) + fallback API
+and worker on Render Starter (~$7 each). The Rust API can wait.
+**Simplest setup:** everything except the database on Render (one dashboard,
+one `render.yaml`). The web app is included in the blueprint.
+
+---
+
+## Step 0 — get the code onto the branch you will deploy
+
+The work is on `arena/d7dcb538-campus`. Deploy from `main` for anything real:
+
+```bash
+cd ~/Campus
+git push origin arena/d7dcb538-campus        # already done
+gh pr create --base main --head arena/d7dcb538-campus \
+  --title "CampusSphere platform" --fill
+gh pr merge --merge                           # after you have looked at it
+git checkout main && git pull
+```
+
+Render and Vercel can both deploy a non-default branch, so you may skip the
+merge while you are only testing. Do not test with production data.
+
+---
+
+## Step 1 — create the database (Neon)
+
+1. Neon console → **New project**. Postgres 17 is fine; the migrations only use
+   core features (`gen_random_uuid`, enums, triggers).
+2. Choose the region closest to your users (Frankfurt for Tunisia/Europe).
+3. Open **Connect** and copy **two** strings — this distinction matters:
+   - **Pooled** (`...-pooler.<region>.aws.neon.tech/...`): runtime `DATABASE_URL`
+     for the web app, fallback and worker.
+   - **Direct** (same host without `-pooler`): used **only** for migrations and
+     `pg_dump`. PgBouncer in transaction mode cannot run DDL reliably.
+4. Append `?sslmode=require` if Neon did not already include it.
+
+> `packages/core` no longer sends `statement_timeout`/`lock_timeout` in the
+> startup packet. Neon's pooler rejects those with
+> `unsupported startup parameter in options`, which would fail every
+> connection. Client-side `query_timeout` (10 s) and per-transaction
+> `SET LOCAL` are used instead. If you want a server-side cap too, set it on
+> the role once, not per connection:
+>
+> ```sql
+> ALTER ROLE <neon_role> SET statement_timeout = '10s';
+> ```
+
+**Checkpoint:** `psql "<direct-url>" -c "select current_database(), version();"`
+prints one row.
+
+---
+
+## Step 2 — apply migrations from your machine
+
+Run these locally against the **direct** URL. The inline variable wins over
+`.env`, which is important: your local `.env` points at the local database.
+
+```bash
+cd ~/Campus
+
+DATABASE_URL='postgresql://…direct…/neondb?sslmode=require' npm run db:migrate
+DATABASE_URL='postgresql://…direct…/neondb?sslmode=require' npm run db:status
+DATABASE_URL='postgresql://…direct…/neondb?sslmode=require' npm run db:verify
+```
+
+Expected output:
+
+- `applied 0001_…` through `0006_…`
+- `6/6 applied, 0 pending`
+- `all database invariants hold`
+
+✅ This exact sequence (six checksummed migrations + every invariant) passes in
+this workspace against PostgreSQL 16. Neon runs 16/17, which is compatible.
+
+**Do not** run `npm run db:seed` against this database. It refuses when
+`NODE_ENV=production`, and demo content does not belong in a real deployment.
+
+---
+
+## Step 3 — create the first super-admin
+
+Do this before anyone signs in, so the first account is the owner, not a
+random early visitor. Same direct URL:
+
+```bash
+cd ~/Campus
+CONFIRM_SUPERADMIN=you@university.edu \
+DATABASE_URL='postgresql://…direct…/neondb?sslmode=require' \
+npm run admin:bootstrap
+```
+
+Expected: `Created … as super_admin` and `Audit record written`.
+The script exits `2` without `CONFIRM_SUPERADMIN`, and is safe to re-run.
+The account links to Google the first time that email signs in.
+
+✅ Verified in this workspace (create, re-run, role de-duplication, audit row).
+
+---
+
+## Step 4 — Google OAuth client
+
+1. <https://console.cloud.google.com> → project → **APIs & Services** →
+   **OAuth consent screen**: External; add your email as a test user while the
+   app is in testing; scopes `openid`, `email`, `profile`.
+2. **Credentials → Create credentials → OAuth client ID → Web application**.
+3. Authorized JavaScript origins: `https://<your-web-domain>`
+4. Authorized redirect URI — exact, no trailing slash:
+   `https://<your-web-domain>/api/auth/google/callback`
+5. Copy the client ID and client secret.
+
+If you do not know the domain yet, deploy first (Step 5) with a placeholder,
+then come back and add the assigned `https://campussphere-web.onrender.com`
+(or Vercel) URL, plus your custom domain later. You can register more than one
+redirect URI, which is the easiest way to move from a platform domain to a real
+one.
+
+The redirect URI is built from `NEXT_PUBLIC_SITE_URL`:
+
+```ts
+`${NEXT_PUBLIC_SITE_URL}/api/auth/google/callback`
+```
+
+so the variable and the Google console must match exactly, including `https`.
+
+---
+
+## Step 5 — deploy on Render
+
+The blueprint is [`deployment/render.yaml`](../deployment/render.yaml).
+
+1. Edit the placeholders **before** syncing. Replace every
+   `https://campussphere.example.edu` with the URL the web service will have.
+   If you use the default Render domain, put
+   `https://campussphere-web.onrender.com` (the service name is in the file).
+2. Commit and push the edit.
+3. Render dashboard → **New → Blueprint** → connect
+   `Nour-yahyaoui/Campus` → pick the branch → **Apply**. Render creates the
+   services in the file.
+4. Fill the `sync: false` secrets per service:
+
+| Service | Variables |
+| --- | --- |
+| `campussphere-web` | `DATABASE_URL` (pooled), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| `campussphere-fallback-api` | `DATABASE_URL` (pooled) |
+| `campussphere-worker` | `DATABASE_URL` (pooled) |
+| `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it |
+
+5. If you are **not** deploying the Rust API yet, delete its block from
+   `render.yaml` before applying (or suspend the service afterwards). It is
+   unproven; the fallback already serves reads.
+6. If you are on a plan without background workers, delete the worker block.
+   Emails, reminders and cleanup will not run — `outbound_emails` rows will
+   accumulate as failed jobs, which is visible rather than silent.
+
+What the blueprint already handles, and why:
+
+- `npm ci --include=dev` at build time. `next build` and the worker's `tsx`
+  runner need dev dependencies; setting `NODE_ENV=production` without this flag
+  makes `npm ci` skip them and the build/runtime breaks.
+- `next start --port ${PORT:-3000}`. Render assigns `$PORT`; the old hardcoded
+  `3000` would fail the port scan.
+- Health checks on `/api/health/ready` (web) and `/health/ready` (fallback).
+  The web check returns `503` and names the missing variable when the
+  configuration is wrong, so a bad deploy fails instead of serving 500s.
+
+**Checkpoint after the first build:**
+
+```bash
+curl -fsS https://<web>/api/health/ready          # {"status":"ok", …}
+curl -fsS https://<fallback>/health/ready         # {"status":"ok", …}
+curl -fsS "https://<fallback>/api/v1/clubs" | head -c 200
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<fallback>/api/v1/clubs \
+  -H 'content-type: application/json' -d '{}'      # expect 503, nothing written
+```
+
+✅ These endpoints and the read-only refusal were verified locally against the
+production build. The hosted run is yours to confirm.
+
+---
+
+## Step 5b — alternative: web on Vercel instead of Render
+
+Only if you are **not** using the Render web service. The fallback and worker
+still belong on Render.
+
+1. Vercel → **Add New → Project** → import the repository.
+2. **Root Directory: `apps/web`** — not the repository root. Framework preset:
+   **Next.js**. Node.js version: **22.x**.
+3. Project Settings → General → enable
+   **“Include source files outside of the Root Directory in the Build Step.”**
+   This is required: `apps/web` imports `packages/core` and
+   `packages/contracts`, which sit outside its root.
+4. Environment variables (Production **and** Preview, separately):
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Neon **pooled** URL |
+   | `NEXT_PUBLIC_SITE_URL` | `https://<your-web-domain>` |
+   | `GOOGLE_CLIENT_ID` | from Step 4 |
+   | `GOOGLE_CLIENT_SECRET` | from Step 4 |
+   | `ALLOW_DEV_SIGN_IN` | `false` |
+   | `DB_POOL_MAX` | `5` |
+   | `EMAIL_TRANSPORT` | `console` until Step 8, then `resend` or `smtp` |
+
+5. Leave build/install commands at their defaults — Vercel detects the npm
+   workspace and installs from the repository root.
+6. Deploy, then check `https://<web>/api/health/ready`.
+
+Preview deployments must not point at the production database, and should use a
+separate Google client (a separate redirect URI is enough). This is a hard rule
+in `docs/SECURITY.md`, not a suggestion.
+
+---
+
+## Step 6 — run the smoke checks against the deployed URLs
+
+```bash
+cd ~/Campus
+BASE_URL=https://<web> FALLBACK_URL=https://<fallback> npm run smoke
+```
+
+Expected: 12 web checks + 4 fallback checks, all `PASS`, including the
+anonymous `/dashboard → 307 /login` redirect.
+
+Then in a browser:
+
+- [ ] `/` , `/clubs`, `/events`, `/projects`, `/search` render seeded readers
+      correctly (there is no demo content in production — empty states should
+      look deliberate, not broken).
+- [ ] **Continue with Google** completes and lands on `/dashboard`.
+- [ ] A normal account visiting `/admin` is redirected to
+      `/dashboard?denied=admin`; the super-admin from Step 3 gets a real `200`.
+- [ ] `/observatory` loads for the super-admin only.
+- [ ] Create a club, submit a project proposal, approve it in `/admin`.
+      Approving writes an audit row and enqueues an email job.
+- [ ] Headers: `curl -sI https://<web>/ | grep -iE "content-security|x-frame|strict-transport"`.
+
+✅ The role redirects, logout revocation, CSP/HSTS headers and rate limits were
+verified against the production build locally. The OAuth handshake with real
+Google credentials is the one thing that can only be verified on your
+deployment.
+
+---
+
+## Step 7 — custom domain (do this before inviting people)
+
+1. Render: service → **Settings → Custom Domain**, add `campus.example.edu`,
+   create the shown CNAME. Vercel: **Settings → Domains**.
+2. Wait for the certificate, then change `NEXT_PUBLIC_SITE_URL` to the new
+   origin on **every** service and redeploy.
+3. Add `https://<domain>/api/auth/google/callback` to the Google client and
+   keep the old one until you have confirmed sign-in works on the new domain.
+4. Confirm `Set-Cookie` is `Secure` and that an `http://` request redirects to
+   `https://`.
+
+Session cookies are `Secure` whenever `NODE_ENV=production`, so a plain-HTTP
+origin will silently fail to sign in.
+
+---
+
+## Step 8 — email (required before real use)
+
+The default transport is `console`, and it **throws in production** rather than
+pretending to deliver. That is deliberate: failed jobs land in
+`outbound_emails` with `status = 'failed'`.
+
+Resend (simplest):
+
+1. Create a Resend account, verify your sending domain, create an API key.
+2. Set on web **and** worker: `EMAIL_TRANSPORT=resend`,
+   `RESEND_API_KEY=<key>`, `EMAIL_FROM=CampusSphere <no-reply@your-domain>`.
+3. Redeploy both. The worker must be running — the web app only enqueues jobs.
+4. Trigger something (approve a project) and check the worker log, then:
+
+   ```sql
+   select provider, status, recipient, subject, created_at
+     from outbound_emails order by created_at desc limit 5;
+   ```
+
+SMTP instead: `EMAIL_TRANSPORT=smtp` and `SMTP_URL=smtps://user:pass@host:465`.
+
+---
+
+## Step 9 — backups and monitoring
+
+1. **Neon:** check the plan's PITR/backup window. Do not assume it exists.
+2. **Logical backup** on a schedule (cron, GitHub Action or your laptop):
+
+   ```bash
+   pg_dump "<direct-url>" --format=custom --no-owner --no-acl \
+     --file="campussphere-$(date -u +%Y%m%dT%H%MZ).dump"
+   ```
+
+   Store encrypted, 14–30 day retention. ✅ The dump → restore → `db:status` →
+   `db:verify` path was rehearsed in this workspace at demo size; see
+   `docs/OPERATIONS.md`.
+3. **Uptime monitor** (Render, BetterStack, UptimeRobot — anything):
+   `https://<web>/api/health/ready` and `https://<fallback>/health/ready`.
+   Alert to an inbox someone reads.
+4. **App-level health**: `/observatory` shows measured API, database and job
+   metrics. It is not a replacement for external monitoring; it cannot tell you
+   the process is dead.
+5. Set `METRICS_RETENTION_DAYS` deliberately (default 30).
+
+---
+
+## Step 10 — rollback plan (write it down before you need it)
+
+- **Code:** Render → Deploys → select the previous successful deploy →
+  **Rollback** (or redeploy the older commit). Vercel → Deployments →
+  **Instant Rollback**.
+- **Migrations are forward-only.** Never edit an applied file: the runner
+  verifies checksums and will refuse. If a migration is wrong, write a new one.
+- **Data:** restore from a dump into a *new* database, verify, then repoint
+  `DATABASE_URL` — never restore over the live one.
+- **Configuration:** keep the previous env values in a password manager; the
+  health check will tell you what is missing after a rollback.
+
+---
+
+## Troubleshooting the first deploy
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `node: .env: not found` in worker logs | old script used `--env-file=.env` | pull this commit: scripts now use `--env-file-if-exists` |
+| Every page 500s with `ALLOW_DEV_SIGN_IN must be false in production` | `.env`-style config leaked into production | set `ALLOW_DEV_SIGN_IN=false` |
+| `/api/health/ready` is `503`, `config` check fails | Google credentials missing on web | set `GOOGLE_CLIENT_ID`/`SECRET` (web only) |
+| `unsupported startup parameter in options` from Neon | startup `options` sent to the pooler | pull this commit (pool now uses client-side timeout); never pass `options=-c …` to a Neon *pooled* URL |
+| `password authentication failed` | wrong URL, or direct/pooled mixed up | runtime = pooled, migrations = direct |
+| `too many connections` | pool size × instances exceeds Neon's limit | lower `DB_POOL_MAX`, use the pooled URL |
+| Build fails: `next: not found`, `tsc: not found` | `npm ci` skipped dev dependencies | `npm ci --include=dev` (already in `render.yaml`) |
+| Port scan fails / service never healthy | hardcoded port | `next start --port ${PORT:-3000}` (already fixed) |
+| `redirect_uri_mismatch` on Google | URI differs by scheme, host or trailing slash | match `NEXT_PUBLIC_SITE_URL` exactly; register both domains |
+| Sign-in loops back to `/login` | cookie rejected: HTTP origin, or `NEXT_PUBLIC_SITE_URL` on a different host | use HTTPS, one canonical host |
+| Migrations hang or fail on Neon | ran against the pooled URL | use the direct URL for `db:*` |
+| Health check times out on a free Neon plan | compute suspended, cold start | retry, raise the health-check timeout, or use a paid plan |
+| Emails never arrive | worker not running, or console transport | deploy the worker; set Resend/SMTP (Step 8) |
+
+---
+
+## What "deployed" still does not mean
+
+A green deploy closes gates 29 (staging deployment) and most of 13 (Google
+sign-in) in [`docs/LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md). It does **not**
+close: Rust compilation, the k6 run at target concurrency, browser E2E,
+accessibility audit, a third-party security review, a production-size restore,
+or the legal/privacy review. Keep the launch checklist next to the deployment.

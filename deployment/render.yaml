@@ -1,7 +1,58 @@
-# Render blueprint. Replace the placeholder domains and database reference.
-# Nothing here has been deployed from this repository yet; treat it as a
-# configuration starting point, not evidence of a running service.
+# Render blueprint for CampusSphere.
+#
+# This file is a starting configuration, not evidence that anything has been
+# deployed. Replace every `campussphere.example.edu` with your real domain and
+# fill in the `sync: false` secrets in the Render dashboard after the first
+# sync. See docs/DEPLOY_STEPS.md for the ordered runbook.
+#
+# Notes that cost people an afternoon:
+# - Builds install dev dependencies (`--include=dev`) because `next build` and
+#   the worker's `tsx` runner are not production dependencies in the strict
+#   sense; without the flag, `NODE_ENV=production` makes `npm ci` skip them.
+# - Migrations are NOT run here. Apply them from your machine against Neon's
+#   *direct* (non-pooler) URL before the first deploy; runtime uses the pooled
+#   URL.
+# - The worker needs a paid instance type on Render. If you are on a free plan
+#   for now, delete the worker service and expect no email delivery, reminders
+#   or cleanup jobs until one exists.
+
 services:
+  # ---------------------------------------------------------------- web app
+  - type: web
+    name: campussphere-web
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci --include=dev && npm run build --workspace @campussphere/web
+    startCommand: npm run start --workspace @campussphere/web
+    healthCheckPath: /api/health/ready
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://campussphere.example.edu
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: ALLOW_DEV_SIGN_IN
+        value: "false"
+      - key: DB_POOL_MAX
+        value: "5"
+      - key: EMAIL_TRANSPORT
+        value: console
+      - key: EMAIL_FROM
+        value: CampusSphere <no-reply@campussphere.example.edu>
+
+  # --------------------------------------------------------- primary Rust API
+  # Optional until the Rust job in CI has compiled and tested it. The fallback
+  # below serves reads in the meantime. Delete this block if you are not
+  # deploying it yet.
   - type: web
     name: campussphere-rust-api
     runtime: docker
@@ -16,48 +67,54 @@ services:
         sync: false
       - key: NEXT_PUBLIC_SITE_URL
         value: https://campussphere.example.edu
-      - key: NODE_ENV
-        value: production
       - key: RUST_LOG
         value: info
 
+  # ---------------------------------------------------- read-only fallback API
   - type: web
     name: campussphere-fallback-api
     runtime: node
     plan: starter
     region: frankfurt
-    buildCommand: npm ci && npm run build --workspace @campussphere/api
+    buildCommand: npm ci --include=dev && npm run build --workspace @campussphere/api
     startCommand: npm run start --workspace @campussphere/api
     healthCheckPath: /health/ready
     autoDeploy: false
     envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: DB_POOL_MAX
         value: "3"
-      - key: NODE_ENV
-        value: production
       - key: NEXT_PUBLIC_SITE_URL
         value: https://campussphere.example.edu
       - key: ALLOW_DEV_SIGN_IN
         value: "false"
 
+  # ------------------------------------------------------------------ worker
   - type: worker
     name: campussphere-worker
     runtime: node
     plan: starter
     region: frankfurt
-    buildCommand: npm ci
+    buildCommand: npm ci --include=dev
     startCommand: npm run worker
     autoDeploy: false
     envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
         sync: false
       - key: DB_POOL_MAX
         value: "2"
-      - key: NODE_ENV
-        value: production
       - key: EMAIL_TRANSPORT
         value: console
       - key: JOBS_POLL_INTERVAL_MS
         value: "2000"
+      - key: ALLOW_DEV_SIGN_IN
+        value: "false"

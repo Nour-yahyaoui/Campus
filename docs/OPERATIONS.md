@@ -147,3 +147,6 @@ Never commit any of these. `.env` and `.env.*.local` are git-ignored.
 | Google sign-in redirects with an error | redirect URI mismatch, clock skew, expired state | re-check Google console, server time |
 | 429 for legitimate users | shared NAT hit a limit | raise the limit consciously or key on account id |
 | "relation does not exist" after deploy | migration not applied | run `npm run db:migrate` before the new build |
+| `unsupported startup parameter in options` | a client sent `statement_timeout`/`options` in the startup packet to Neon's pooled endpoint | remove the startup option; use client-side `query_timeout` (default here) or `ALTER ROLE … SET statement_timeout` |
+| `node: .env: not found` | a script uses `--env-file=.env` in a host with no `.env` | scripts use `--env-file-if-exists`; pass variables through the platform |
+| Worker exits immediately | `tsx` or dev dependencies not installed at build | build with `npm ci --include=dev`; `tsx` is a runtime dependency |

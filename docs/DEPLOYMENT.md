@@ -8,6 +8,11 @@ any of them can be replaced without touching the schema.
 > claim below is a configuration instruction, not evidence of a running
 > production system. See the launch checklist.
 
+**Start with [`docs/DEPLOY_STEPS.md`](DEPLOY_STEPS.md)** — the ordered, copy-paste
+runbook (database → migrations → super-admin → Google → services → checks).
+This file is the reference: topology, every variable, failover and security
+notes.
+
 ## 1. Database — Neon
 
 1. Create a Neon project and database (PostgreSQL 16+).
@@ -28,12 +33,33 @@ any of them can be replaced without touching the schema.
 The schema is Neon-compatible: no superuser-only extensions, `gen_random_uuid()`
 is built into PostgreSQL 15+, and no `pgcrypto` requirement is assumed.
 
-## 2. Web — Vercel
+**Connection parameters.** The pool sets `application_name` (accepted by
+PgBouncer) and a client-side `query_timeout`, and never sends
+`options=-c statement_timeout=…`. Neon's pooled endpoint rejects unknown
+startup parameters with `unsupported startup parameter in options`, which would
+fail *every* connection. Transactions use `SET LOCAL` for statement and lock
+timeouts, which survives transaction-mode pooling. For a server-side cap as
+well, set it on the role once:
 
-- Root directory: repository root. Framework preset: Next.js.
-- Install: `npm install`; build: `npm run build --workspace @campussphere/web`.
+```sql
+ALTER ROLE <neon_role> SET statement_timeout = '10s';
+```
+
+## 2. Web — Vercel (or Render)
+
+The blueprint deploys the web app on Render too. If you prefer Vercel:
+
+- **Root directory: `apps/web`**, framework preset Next.js, Node.js 22.x.
+  *Not* the repository root: with workspaces, Next.js must build inside the app
+  directory so `.next` lands where Vercel expects it.
+- Project Settings → General → enable **“Include source files outside of the
+  Root Directory in the Build Step”**. `apps/web` imports `packages/core` and
+  `packages/contracts`, which live outside that root; without the toggle the
+  build fails on unresolved workspace imports.
+- Install/build commands stay at the defaults — Vercel detects the npm
+  workspace and installs from the repository lockfile.
 - Environment variables (Production and Preview separately):
-  `DATABASE_URL`, `NEXT_PUBLIC_SITE_URL`, `GOOGLE_CLIENT_ID`,
+  `DATABASE_URL` (pooled), `NEXT_PUBLIC_SITE_URL`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `ALLOW_DEV_SIGN_IN=false`, `EMAIL_TRANSPORT`,
   `EMAIL_FROM`, `SMTP_URL`/`RESEND_API_KEY`, `DB_POOL_MAX`.
   Google credentials are only needed by this service; the fallback API and the
@@ -41,8 +67,16 @@ is built into PostgreSQL 15+, and no `pgcrypto` requirement is assumed.
 - Set the canonical domain to the same value as `NEXT_PUBLIC_SITE_URL`. Preview
   deployments must use a **different** Google OAuth client and must not point at
   the production database — this is a hard rule in `docs/SECURITY.md`.
-- `next.config.ts` loads the repository `.env` for local builds; on Vercel the
+- `next.config.ts` loads a repository `.env` for local builds; on Vercel the
   platform environment wins.
+- The web app's readiness probe is `/api/health/ready`. It returns `503` and
+  names the missing variable when configuration is wrong, so use it as the
+  deployment health check rather than `/`.
+
+On Render the equivalent service is in `deployment/render.yaml`: build
+`npm ci --include=dev && npm run build --workspace @campussphere/web`, start
+`npm run start --workspace @campussphere/web` (it honours `$PORT`), health check
+`/api/health/ready`.
 
 **Do not** put `DATABASE_URL` or `GOOGLE_CLIENT_SECRET` in a `NEXT_PUBLIC_*`
 variable. They would be shipped to the browser.
@@ -68,19 +102,22 @@ that lockfile; then release builds use the pinned dependency graph.
 
 ## 4. Fallback API — Render
 
-- Environment: Node.
-- Root directory: repository root.
-- Build: `npm ci && npm run build --workspace @campussphere/api`.
-- Start: `npm run start --workspace @campussphere/api` (binds `0.0.0.0:4000`;
-  Render provides `PORT`, so override with
-  `next start -p $PORT -H 0.0.0.0` if your plan injects it).
+- Environment: Node 22; root directory: repository root.
+- Build: `npm ci --include=dev && npm run build --workspace @campussphere/api`
+  (dev dependencies are needed for `next build`; without the flag,
+  `NODE_ENV=production` makes `npm ci` skip them).
+- Start: `npm run start --workspace @campussphere/api` — the script binds
+  `0.0.0.0` and honours Render's `$PORT` (`--port ${PORT:-4000}`).
 - Health check path: `/health/ready`.
-- Its own `DATABASE_URL` and `DB_POOL_MAX`; no Google credentials are needed.
+- Its own `DATABASE_URL` (pooled) and `DB_POOL_MAX`; no Google credentials are
+  needed.
 
 ## 5. Worker — Render background worker
 
-- Build: `npm ci`.
-- Start: `npm run worker` (runs `tsx scripts/worker.ts`).
+- Build: `npm ci --include=dev` (the worker runs through `tsx`).
+- Start: `npm run worker` (`tsx --env-file-if-exists=.env scripts/worker.ts`).
+  The `.env` file is optional: hosted environments supply real variables, and
+  the script no longer fails when the file is absent.
 - No port, no health check; Render restarts it if it exits.
 - Give it a small pool (`DB_POOL_MAX=2`) and run exactly one replica unless you
   verify that `for update skip locked` keeps throughput healthy with more.

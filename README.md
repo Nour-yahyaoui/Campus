@@ -89,6 +89,14 @@ CONFIRM_SUPERADMIN=you@university.edu npm run admin:bootstrap
 The script refuses to run without the explicit confirmation variable, creates
 the account if needed, grants `super_admin` and writes an audit record.
 
+## Deploying
+
+See [`docs/DEPLOY_STEPS.md`](docs/DEPLOY_STEPS.md). The short version: create a
+Neon database, run `npm run db:migrate` against its **direct** URL, bootstrap
+the first super-admin, create a Google OAuth client, then apply
+`deployment/render.yaml` (web + fallback + worker, Rust optional) or deploy
+`apps/web` to Vercel with root directory `apps/web`.
+
 ## Checks
 
 ```bash
@@ -145,6 +153,7 @@ Not verified here, and not claimed:
 | [Security](docs/SECURITY.md) | threat model and implemented controls |
 | [Privacy](docs/PRIVACY.md) | data inventory, retention, export and deletion |
 | [Operations](docs/OPERATIONS.md) | deploy, backup/restore, incident and rollback runbooks |
+| [Deploy steps](docs/DEPLOY_STEPS.md) | ordered runbook: database → migrations → OAuth → services → checks |
 | [Deployment](docs/DEPLOYMENT.md) | Render/Vercel/Neon configuration and env vars |
 | [Testing](docs/TESTING.md) | what is tested, how, and what is not |
 | [Load testing](docs/LOAD_TEST_PLAN.md) | target, method, abort criteria |

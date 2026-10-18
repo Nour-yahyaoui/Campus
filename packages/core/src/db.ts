@@ -68,12 +68,16 @@ export function getPool(): pg.Pool {
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
       ssl: sslFor(env.DATABASE_URL),
+      // PgBouncer keeps track of only a few startup parameters, and Neon's
+      // pooled endpoint refuses anything else: sending
+      // `options=-c statement_timeout=…` makes every connection fail with
+      // "unsupported startup parameter in options". So the server-side limit
+      // is not in the startup packet; `query_timeout` is enforced by the
+      // client and works through any pooler. Transactions add SET LOCAL
+      // limits (see `transaction`), and OPERATIONS documents the role-level
+      // setting for defence in depth.
       application_name: "campussphere",
-      // Bound every query so a single slow statement cannot hold a connection
-      // or a page render indefinitely. These ride along in the startup packet;
-      // issuing them as a first query races pg-pool handing the client to its
-      // first real user (and pg warns about queued client queries).
-      options: "-c statement_timeout=10000 -c lock_timeout=5000",
+      query_timeout: 10_000,
     });
     pool.on("error", (error) => {
       console.error("[db] idle client error", error.message);
@@ -128,6 +132,10 @@ export async function transaction<T>(work: (client: pg.PoolClient) => Promise<T>
   const client = await getPool().connect();
   try {
     await client.query("begin");
+    // SET LOCAL works on a direct connection and through a transaction-mode
+    // pooler, unlike session-level SET. It scopes the limit to this
+    // transaction, which is exactly what we want.
+    await client.query("set local statement_timeout = 10000; set local lock_timeout = 5000;");
     const result = await work(client);
     await client.query("commit");
     return result;

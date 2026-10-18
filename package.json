@@ -20,15 +20,17 @@
     "test": "npm run test --workspaces --if-present",
     "db:migrate": "node scripts/db.mjs migrate",
     "db:status": "node scripts/db.mjs status",
-    "db:seed": "tsx --env-file=.env scripts/seed.mjs",
+    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.mjs",
     "db:reset": "node scripts/db.mjs reset",
     "db:verify": "node scripts/db.mjs verify",
-    "admin:bootstrap": "tsx --env-file=.env scripts/bootstrap-superadmin.mjs",
-    "worker": "tsx --env-file=.env scripts/worker.ts",
+    "admin:bootstrap": "tsx --env-file-if-exists=.env scripts/bootstrap-superadmin.mjs",
+    "worker": "tsx --env-file-if-exists=.env scripts/worker.ts",
     "smoke": "node scripts/smoke.mjs",
-    "load": "node scripts/load.mjs"
+    "load": "node scripts/load.mjs",
+    "start:web": "npm run start --workspace @campussphere/web",
+    "start:api": "npm run start --workspace @campussphere/api"
   },
-  "devDependencies": {
+  "dependencies": {
     "tsx": "^4.23.15"
   }
 }
