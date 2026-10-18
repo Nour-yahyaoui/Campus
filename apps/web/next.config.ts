@@ -12,6 +12,11 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["@campussphere/core", "@campussphere/contracts"],
+  // The development server refuses server-action requests whose Origin it does
+  // not recognise. Sandboxed previews and tunnels serve the app from their own
+  // hostname, so the dev origin has to be allowed explicitly; production reads
+  // NEXT_PUBLIC_SITE_URL and is unaffected.
+  allowedDevOrigins: ["*.e2b.app", "*.trycloudflare.com", "*.ngrok-free.app"],
   experimental: {
     serverActions: { bodySizeLimit: "512kb" },
   },
