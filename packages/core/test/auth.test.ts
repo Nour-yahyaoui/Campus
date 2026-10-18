@@ -9,6 +9,7 @@ import {
   consumeSignInTicket,
   issueSignInTicket,
   findMeById,
+  googleRedirectUri,
 } from "../src/auth";
 import { query } from "../src/db";
 import { getEnv, resetEnvCache } from "../src/env";
@@ -74,6 +75,48 @@ describe("sessions and identity", () => {
     } finally {
       process.env.NODE_ENV = previous;
       resetEnvCache();
+    }
+  });
+});
+
+describe("Google redirect URI", () => {
+  const canonical = "http://localhost:3000/api/auth/google/callback";
+
+  it("defaults to the canonical host", () => {
+    expect(googleRedirectUri()).toBe(canonical);
+    expect(googleRedirectUri(null)).toBe(canonical);
+  });
+
+  it("follows a Vercel alias, because OAuth matches the URI verbatim", () => {
+    // Otherwise a deployment works on exactly one hostname and every alias
+    // answers `redirect_uri_mismatch` — the failure this exists to prevent.
+    expect(googleRedirectUri("https://campus-spheree.vercel.app")).toBe(
+      "https://campus-spheree.vercel.app/api/auth/google/callback",
+    );
+  });
+
+  it("honours an explicitly listed origin", () => {
+    process.env.AUTH_ALLOWED_ORIGINS = "https://campus.example.edu, https://staging.example.edu/";
+    try {
+      expect(googleRedirectUri("https://campus.example.edu")).toBe(
+        "https://campus.example.edu/api/auth/google/callback",
+      );
+      expect(googleRedirectUri("https://staging.example.edu")).toBe(
+        "https://staging.example.edu/api/auth/google/callback",
+      );
+    } finally {
+      delete process.env.AUTH_ALLOWED_ORIGINS;
+    }
+  });
+
+  it("ignores hostnames nobody allowed", () => {
+    process.env.AUTH_ALLOWED_ORIGINS = "";
+    try {
+      expect(googleRedirectUri("https://evil.example")).toBe(canonical);
+      expect(googleRedirectUri("javascript:alert(1)")).toBe(canonical);
+      expect(googleRedirectUri("not a url")).toBe(canonical);
+    } finally {
+      delete process.env.AUTH_ALLOWED_ORIGINS;
     }
   });
 });

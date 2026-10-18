@@ -32,11 +32,19 @@ That is the only database thing you need. **Do not run any SQL.**
 1. <https://console.cloud.google.com> → **APIs & Services** → **OAuth consent
    screen** → External → add your own email as a test user.
 2. **Credentials → Create credentials → OAuth client ID → Web application**.
-3. Authorized redirect URI — exactly this shape, no trailing slash:
+3. Authorized redirect URIs — exactly this shape, no trailing slash. Google
+   matches the string verbatim and the flow starts on whatever host the browser
+   is on, so register **every host you will use** — the Render/Vercel URL *and*
+   your own domain:
 
    ```
    https://<your-app-url>/api/auth/google/callback
+   https://<your-domain>/api/auth/google/callback
    ```
+
+   A missing entry is the `Error 400: redirect_uri_mismatch` screen. The app
+   follows the host you browse (Vercel aliases automatically; other hosts via
+   `AUTH_ALLOWED_ORIGINS`), so the fix is on Google's side, not in the code.
 
    If you do not know the URL yet, come back to this field after step 3; Render
    gives you the URL. You can add several redirect URIs, so adding one later is

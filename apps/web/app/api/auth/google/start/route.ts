@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { OAUTH_FLOW_TTL_SECONDS, OAUTH_STATE_COOKIE, OAUTH_VERIFIER_COOKIE } from "@campussphere/contracts";
 import { beginGoogleFlow, enforceRateLimit, isAppError } from "@campussphere/core";
 import { handleApi } from "@campussphere/core";
-import { absoluteUrl } from "@/lib/url";
+import { absoluteUrl, requestOrigin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,10 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const next = url.searchParams.get("next") ?? "/dashboard";
     try {
-      const flow = await beginGoogleFlow(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      const flow = await beginGoogleFlow(
+        next.startsWith("/") && !next.startsWith("//") ? next : "/",
+        requestOrigin(request),
+      );
       const secure = process.env.NODE_ENV === "production";
       const response = NextResponse.redirect(flow.url);
       response.cookies.set(OAUTH_STATE_COOKIE, flow.state, {

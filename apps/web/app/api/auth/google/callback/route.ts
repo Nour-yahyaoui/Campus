@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { OAUTH_STATE_COOKIE, OAUTH_VERIFIER_COOKIE } from "@campussphere/contracts";
 import { completeGoogleFlow, isAppError } from "@campussphere/core";
 import { setSessionCookie } from "@/lib/session";
-import { absoluteUrl } from "@/lib/url";
+import { absoluteUrl, requestOrigin } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       cookieVerifier,
       userAgent: request.headers.get("user-agent"),
       ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      origin: requestOrigin(request),
     });
     await setSessionCookie(session);
     const response = NextResponse.redirect(

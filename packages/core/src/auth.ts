@@ -240,8 +240,55 @@ function googleJwks() {
   return jwks;
 }
 
-export function googleRedirectUri(): string {
-  return `${siteUrl()}/api/auth/google/callback`;
+/**
+ * Where Google sends the browser after consent.
+ *
+ * The canonical host is the default, but a deployment is also reached on its
+ * Vercel aliases — and OAuth only accepts a redirect URI that is registered
+ * verbatim on the client. Pinning every flow to the canonical host therefore
+ * means sign-in works on exactly one hostname, and fails with
+ * `redirect_uri_mismatch` everywhere else until DNS points at the app.
+ *
+ * Callers pass the origin of the request that started the flow. It is honoured
+ * only when it is the canonical host, a `*.vercel.app` alias, or an origin the
+ * deployment listed in `AUTH_ALLOWED_ORIGINS`; anything else falls back to the
+ * canonical URI. This is not an open redirect: Google still refuses any URI that
+ * is not registered, and the state cookie is scoped to the host the browser is
+ * actually on, so start and finish must agree.
+ */
+export function googleRedirectUri(origin?: string | null): string {
+  const canonical = siteUrl();
+  const candidate = normaliseOrigin(origin);
+  if (candidate && candidate !== canonical && isAllowedAuthOrigin(candidate)) {
+    return `${candidate}/api/auth/google/callback`;
+  }
+  return `${canonical}/api/auth/google/callback`;
+}
+
+function normaliseOrigin(value?: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedAuthOrigin(origin: string): boolean {
+  const listed = (process.env.AUTH_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((entry) => entry.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+  if (listed.includes(origin)) return true;
+  try {
+    // Aliases and preview URLs. A stranger's host cannot leak a code: Google
+    // only delivers one to a redirect URI registered on this client.
+    return new URL(origin).hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
 }
 
 export interface OAuthFlow {
@@ -252,7 +299,7 @@ export interface OAuthFlow {
   expiresAt: Date;
 }
 
-export async function beginGoogleFlow(redirectTo = "/"): Promise<OAuthFlow> {
+export async function beginGoogleFlow(redirectTo = "/", origin?: string | null): Promise<OAuthFlow> {
   const env = getEnv();
   if (!env.googleConfigured) throw badRequest("Google sign-in is not configured on this deployment.");
   const state = randomToken(24);
@@ -270,7 +317,7 @@ export async function beginGoogleFlow(redirectTo = "/"): Promise<OAuthFlow> {
 
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID!,
-    redirect_uri: googleRedirectUri(),
+    redirect_uri: googleRedirectUri(origin),
     response_type: "code",
     scope: "openid email profile",
     state,
@@ -289,6 +336,8 @@ export async function completeGoogleFlow(input: {
   cookieVerifier: string | null;
   userAgent?: string | null;
   ip?: string | null;
+  /** Origin that started the flow, so the token exchange repeats its redirect_uri. */
+  origin?: string | null;
 }): Promise<{ session: SessionResult; redirectTo: string }> {
   const env = getEnv();
   if (!env.googleConfigured) throw badRequest("Google sign-in is not configured on this deployment.");
@@ -322,7 +371,7 @@ export async function completeGoogleFlow(input: {
     code: input.code,
     code_verifier: input.cookieVerifier,
     grant_type: "authorization_code",
-    redirect_uri: googleRedirectUri(),
+    redirect_uri: googleRedirectUri(input.origin),
   });
 
   let tokenResponse: Response;

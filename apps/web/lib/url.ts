@@ -25,3 +25,18 @@ export function absoluteUrl(path: string, request: Request): URL {
   if (configured) return new URL(safePath, configured);
   return new URL(safePath, request.url);
 }
+
+/**
+ * The origin the browser is actually on, derived from the proxy headers Vercel
+ * (and the sandbox preview) set. Unlike `absoluteUrl`, this deliberately ignores
+ * the configured canonical host: it answers "which hostname is this request for",
+ * which is what OAuth's redirect URI has to match.
+ */
+export function requestOrigin(request: Request): string | null {
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (!host || host.startsWith("0.0.0.0")) return null;
+  const forwarded = request.headers.get("x-forwarded-proto");
+  const protocol =
+    forwarded ?? (process.env.NODE_ENV === "production" ? "https" : new URL(request.url).protocol.replace(":", ""));
+  return `${protocol}://${host}`;
+}

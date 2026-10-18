@@ -49,16 +49,22 @@ resolves to it.
 
 ## The one Google-side change
 
-Add this authorised redirect URI to the OAuth 2.0 Web client (Google Cloud
-Console → Credentials):
+Google compares the redirect URI **verbatim**, and the app starts the flow on the
+host the browser is actually on: the canonical host, any `*.vercel.app` alias, or
+another host listed in `AUTH_ALLOWED_ORIGINS`. One entry per host you will use.
 
-```
-https://campus-spheree.com/api/auth/google/callback
-```
+Google Cloud Console → **APIs & Services → Credentials → your OAuth 2.0 Web
+client → Authorised redirect URIs**:
 
-Keep the old Vercel URL in the list only if you want sign-in to keep working on the
-`*.vercel.app` hostname. Sign-in breaks on any host whose callback URI is not
-registered, and the error comes from Google, not from this app.
+| Redirect URI | Why |
+| --- | --- |
+| `https://campus-spheree.com/api/auth/google/callback` | the canonical host, once DNS resolves |
+| `https://campus-spheree.vercel.app/api/auth/google/callback` | usable today, before DNS |
+| `https://campus-web-eight.vercel.app/api/auth/google/callback` | the older alias, if you still open it |
+
+`Error 400: redirect_uri_mismatch` means the host in the address bar is missing
+from that list — the deployment is fine. Google can take a few minutes to pick up
+a new entry; a hard reload of the sign-in page is enough after that.
 
 ## Setting `www`
 

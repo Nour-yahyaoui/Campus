@@ -81,6 +81,11 @@ const schema = z.object({
   // may only set up a database that has no super-admin yet. An empty value in
   // .env means "not set", like every other optional string here.
   SETUP_TOKEN: z.preprocess(blankToUndefined, z.string().min(8).optional()),
+
+  // Optional, comma-separated origins whose `/api/auth/google/callback` is a
+  // registered redirect URI on the Google client. Vercel aliases are allowed
+  // without listing; anything else (a second domain, a staging host) goes here.
+  AUTH_ALLOWED_ORIGINS: z.preprocess(blankToUndefined, z.string().optional()),
 });
 
 export type Env = Omit<z.infer<typeof schema>, "NEXT_PUBLIC_SITE_URL"> & {
