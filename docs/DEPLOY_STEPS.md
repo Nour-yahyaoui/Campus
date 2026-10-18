@@ -177,8 +177,8 @@ What the blueprint already handles, and why:
 - `npm ci --include=dev` at build time. `next build` and the worker's `tsx`
   runner need dev dependencies; setting `NODE_ENV=production` without this flag
   makes `npm ci` skip them and the build/runtime breaks.
-- `next start --port ${PORT:-3000}`. Render assigns `$PORT`; the old hardcoded
-  `3000` would fail the port scan.
+- `next start --port ${PORT:-3000}`. Render routes traffic to the
+  port it puts in `$PORT`; a hardcoded port can leave the service unreachable.
 - Health checks on `/api/health/ready` (web) and `/health/ready` (fallback).
   The web check returns `503` and names the missing variable when the
   configuration is wrong, so a bad deploy fails instead of serving 500s.
