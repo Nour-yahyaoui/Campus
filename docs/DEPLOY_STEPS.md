@@ -337,8 +337,10 @@ Admin → Overview → **Servers** probes `GET <API_BASE_URL>/health/metrics` ev
 ten seconds. Two optional variables wire it up:
 
 ```bash
-# On the Next.js service
-API_BASE_URL=https://campussphere-rust-api.onrender.com
+# On the Next.js service. Use the service root — no trailing /api.
+# Health lives at /health/*, the read API at /api/v1/*, so a base ending in
+# /api would make the probe ask for /api/health/metrics and get a 404.
+API_BASE_URL=https://<your-service>.onrender.com
 # On both services, with the same value, to keep the numbers private
 METRICS_TOKEN=<long random string>
 ```

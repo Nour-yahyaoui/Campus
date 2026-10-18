@@ -25,7 +25,7 @@ import { classifyLoad, normalisePrimaryPayload } from "../load";
  * panel repeats that caveat instead of letting a reader assume otherwise.
  */
 
-const PROBE_TIMEOUT_MS = 1_200;
+const PROBE_TIMEOUT_MS = 2_500;
 const PROBE_CACHE_MS = 4_000;
 const MIB = 1024 * 1024;
 
@@ -232,7 +232,9 @@ function describeFailure(error: unknown): string {
   if (typeof error === "object" && error !== null && "name" in error) {
     const name = String((error as { name: unknown }).name);
     if (name === "TimeoutError" || name === "AbortError") {
-      return `No answer within ${PROBE_TIMEOUT_MS / 1000} s.`;
+      // Free-tier hosts sleep. A first probe that times out has still woken the
+      // service, so the next poll usually succeeds; say that instead of "down".
+      return `No answer within ${PROBE_TIMEOUT_MS / 1_000} s. A sleeping free-tier instance can take a minute to wake, and this panel retries every 10 s.`;
     }
   }
   const message = error instanceof Error ? error.message : "The request failed.";
@@ -245,7 +247,7 @@ async function probePrimary(env: Env): Promise<ServerNode> {
     return primaryNode({
       status: "not_configured",
       detail:
-        "API_BASE_URL is not set. The Rust service exists in apps/rust-api but is not deployed for this environment.",
+        "API_BASE_URL is not set for this environment, so there is no separate service to probe.",
     });
   }
 
