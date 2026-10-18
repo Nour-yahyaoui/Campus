@@ -35,7 +35,8 @@ PostgreSQL. MIT licensed.
   explicit list of unavailable measurements.
 - **Accessibility and SEO** — mobile-first layout from 320px, semantic headings,
   visible focus, labelled forms, reduced-motion support, server-rendered public
-  pages, canonical URLs, sitemap, robots rules and per-page Open Graph metadata.
+  pages, canonical URLs, JSON-LD, sitemap, robots rules, RSS, `llms.txt`, per-page
+  Open Graph metadata and Vercel Analytics. Details: [docs/SEO.md](docs/SEO.md).
 
 ## Repository layout
 
