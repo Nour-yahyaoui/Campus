@@ -11,6 +11,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { unavailable } from "./errors";
 
 /**
  * Object storage for uploaded images.
@@ -101,6 +102,20 @@ function bucket(): string {
   return storageInfo().bucket;
 }
 
+/**
+ * A container filesystem is ephemeral, so accepting an upload there in
+ * production would delete the image on the next deploy and hand the user a
+ * broken `/media` link. Refuse loudly instead: a 503 with an actionable
+ * message beats silent data loss.
+ */
+function assertDurableDestination(): void {
+  if (process.env.NODE_ENV === "production" && storageDriver() === "local") {
+    throw unavailable(
+      "Image uploads are unavailable: this deployment has no object storage. Set STORAGE_DRIVER=s3 with the bucket credentials.",
+    );
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Keys                                                                */
 /* ------------------------------------------------------------------ */
@@ -154,6 +169,7 @@ async function localPath(key: string): Promise<string> {
 }
 
 export async function putLocalObject(key: string, bytes: Uint8Array): Promise<void> {
+  assertDurableDestination();
   const full = await localPath(key);
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, bytes, { mode: 0o600 });
@@ -186,6 +202,7 @@ export async function presignUpload(
   expiresIn = 300,
 ): Promise<PresignedUpload> {
   if (storageDriver() === "local") {
+    assertDurableDestination();
     // The local driver has no out-of-process endpoint: the browser uploads to
     // our own route handler, which writes the file. Same two-step flow.
     return {
