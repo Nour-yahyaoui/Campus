@@ -101,4 +101,31 @@ describe("primary metrics payload", () => {
     expect(normalisePrimaryPayload("not an object")).toBeNull();
     expect(normalisePrimaryPayload(null)).toBeNull();
   });
+
+  it("reads the document the deployed Actix service actually sends", () => {
+    // Captured verbatim from https://campusshere.onrender.com/health/metrics
+    // on its first scrape after a cold start, where `percent` is still null
+    // and `uptimeSeconds` is zero.
+    const live = {
+      cpu: { cores: 1, load1: 3.46, load15: 3.92, load5: 3.77, percent: null, percentAverage: null },
+      database: { latencyMs: 185, migrations: 7, ready: true },
+      host: { memoryTotalBytes: 32_911_282_176 },
+      memory: { limitBytes: 536_870_912, peakRssBytes: 9_932_800, rssBytes: 9_928_704 },
+      service: "campussphere-rust-api",
+      status: "ok",
+      uptimeSeconds: 0,
+    };
+    const metrics = normalisePrimaryPayload(live);
+    expect(metrics).not.toBeNull();
+    expect(metrics?.memory?.rssBytes).toBe(9_928_704);
+    expect(metrics?.memory?.peakRssBytes).toBe(9_932_800);
+    expect(metrics?.memory?.limitBytes).toBe(536_870_912);
+    expect(metrics?.cpu?.cores).toBe(1);
+    expect(metrics?.cpu?.load1).toBe(3.46);
+    // A single scrape cannot know an instant CPU percentage; it stays null.
+    expect(metrics?.cpu?.percent).toBeNull();
+    expect(metrics?.cpu?.loadPercent).toBeNull();
+    expect(metrics?.database).toEqual({ ready: true, migrations: 7, latencyMs: 185 });
+    expect(metrics?.uptimeSeconds).toBe(0);
+  });
 });
