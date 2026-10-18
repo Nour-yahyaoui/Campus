@@ -256,7 +256,9 @@ body {
 
 .site-backdrop__orb {
   position: absolute;
-  left: 50%;
+  /* Off-centre on purpose: the orb is a light source from the right edge, not
+     a badge behind the middle of the reading column. */
+  left: 70%;
   top: 42%;
   width: min(118vmin, 980px);
   aspect-ratio: 1;
@@ -279,6 +281,8 @@ body {
 @media (max-width: 640px) {
   .site-backdrop__orb {
     top: 34%;
+    /* A narrower screen would otherwise push most of the orb off the edge. */
+    left: 66%;
   }
 }
 
