@@ -250,24 +250,29 @@ They are not a failover pair and the panel no longer implies they are:
 
 | Job | Who does it |
 | --- | --- |
-| Pages, sign-in, sessions, forms, every write | Next.js, always |
+| Public lists and search (home, `/clubs`, `/events`, `/projects`, `/search`) | Actix when `API_BASE_URL` is set and answering; Next.js otherwise |
+| Detail pages, dashboards, sign-in, sessions, forms, every write | Next.js, always |
 | Public read API `/api/v1/*` | Actix when `API_BASE_URL` is set and answering; Next.js otherwise |
 
-`apps/web/app/api/v1/[...rest]/route.ts` proxies `GET`/`HEAD` reads to
-`${API_BASE_URL}/api/v1/...` and streams the answer back. If the primary times
-out (free-tier hosts sleep), returns a 5xx, or is not configured, the same query
-is answered from this deployment's own database. Every response says which one
-answered in `x-campussphere-served-by`, and a fallback also carries
+Pages read through `apps/web/lib/reads.ts`, which asks the primary first and
+falls back to this deployment's database. Two rules keep a sleeping free-tier
+instance from holding a page hostage: a **2 s timeout**, and a **30 s circuit
+breaker** — after a timeout or a 5xx that serverless instance stops asking, so
+one cold service does not add two seconds to every render. A primary running an
+older build cannot half-render a page either: every item is shape-checked and
+anything unexpected falls back.
+
+`apps/web/app/api/v1/[...rest]/route.ts` applies the same rule to the JSON API
+and streams the answer back. Every response says which one answered in
+`x-campussphere-served-by`, and a fallback also carries
 `x-campussphere-primary: unreachable|not-configured` plus a `warning` header.
 Writes are refused with `503` rather than half-implemented.
 
-The primary is only probed when `API_BASE_URL` is set. If it is, set the same
-`METRICS_TOKEN` on both services. The endpoint now **fails closed**: with no
-token configured it answers `401` to everyone, because it reports process
-memory, CPU, uptime, database latency and migration counts. Comparisons are
-constant-time. The panel reports the `401` verbatim instead of pretending the
-service is down — a metrics panel that shows nothing is telling you the token is
-missing.
+`/health/metrics` is **public**. The dashboard that reads it is a different
+deployment, and requiring a shared secret only meant the panel stayed blank
+whenever the two copies drifted apart. The document describes a process (memory,
+CPU, uptime, database latency, migration count), not a person; put the Rust
+service behind a network you control if you would rather it were private.
 
 Nothing here stores history. The sparkline is the browser's own last 24 samples;
 the package's durable history remains the `api_metrics` table and the provider's

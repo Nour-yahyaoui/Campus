@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EVENT_CATEGORIES } from "@campussphere/contracts";
 import { categoryLabel } from "@/lib/format";
-import { listEvents } from "@campussphere/core";
+import { readEvents } from "@/lib/reads";
 import { EmptyState, EventRow, Pager } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
 import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
@@ -23,7 +23,7 @@ export default async function EventsPage({
 }) {
   const params = await searchParams;
   const when = params.when === "past" ? "past" : params.when === "all" ? "all" : "upcoming";
-  const events = await listEvents({
+  const events = await readEvents({
     category: params.category,
     q: params.q,
     when,

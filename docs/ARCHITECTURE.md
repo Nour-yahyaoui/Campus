@@ -34,22 +34,26 @@ otherwise would add failure modes without adding capability.
 
 ### What actually serves the web app
 
-`apps/web` calls `packages/core` **in process** from server components and
-server actions. That is a deliberate deviation from the "frontend calls the Rust
-API over HTTP" diagram in the original brief, and it is stated here rather than
-implied otherwise:
+Two rules, deliberately different:
 
-- One transaction boundary and one authorization implementation for every web
-  mutation; no partial failure between a web write and an API call.
-- No second network hop on the critical path of a page render.
-- The Rust API is still built against the same schema and contract, so moving
-  data access behind HTTP later is a routing change in `packages/core`, not a
-  rewrite of pages.
+- **Public lists and search** (`/`, `/clubs`, `/events`, `/projects`, `/search`)
+  read through `apps/web/lib/reads.ts`: the Actix service is asked first and
+  this deployment's database answers when it does not. That is a real primary /
+  fallback pair, with a 2 s timeout and a 30 s per-instance circuit breaker so a
+  sleeping free-tier instance costs one slow render, not every render.
+- **Everything else** — detail pages, dashboards, sign-in, sessions, forms and
+  every write — calls `packages/core` in process. Keeping the transaction
+  boundary and the authorization checks in one place is worth more than a
+  second network hop; a write is never split across two services.
 
-The Rust API is therefore **not yet the web's data source**. It is a real,
-separate executable implementing the documented read subset. Until a release
-compiles and contract-tests it in CI, it must be described as unproven (see the
-launch checklist).
+The Rust service implements the list and search subset only. Anything it does
+not implement is answered locally rather than proxied, so a page never shows a
+503 it could have rendered itself. `/api/v1/*` follows the same rule and says
+which one answered in `x-campussphere-served-by`.
+
+The consequence is the point of the arrangement: stopping the Rust service
+degrades latency, not availability. Every page still renders, from the same
+PostgreSQL database the primary reads.
 
 ## Layers
 

@@ -138,9 +138,6 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/campussphere
           PORT: "8099"
           RUST_LOG: info
-          # The metrics endpoint fails closed; this proves both halves of the
-          # contract (401 without it, 2xx with it) instead of only the happy path.
-          METRICS_TOKEN: ci-metrics-token
         run: |
           # Do not let `bash -e` abort on the first failed curl: the point of
           # this step is to report every endpoint, not just the first bad one.
@@ -154,19 +151,12 @@ jobs:
             sleep 1
           done
 
+          # `/health/metrics` is public: the dashboard that reads it lives on a
+          # different service, and a shared secret only meant the panel stayed
+          # blank whenever the two copies drifted apart.
           for path in /health/live /health/ready /health/metrics /api/v1/clubs /api/v1/events /api/v1/projects "/api/v1/search?q=robotics"; do
-            auth=()
-            if [ "$path" = "/health/metrics" ]; then
-              unauth=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:8099$path" 2>/dev/null)
-              echo "--- $path without a token -> ${unauth:-none} (expected 401)"
-              if [ "$unauth" != "401" ]; then
-                status=1
-                echo "::error title=metrics auth::expected 401 without a token, got ${unauth:-none}"
-              fi
-              auth=(-H "Authorization: Bearer ${METRICS_TOKEN}")
-            fi
             : > /tmp/body.json
-            code=$(curl -sS "${auth[@]}" -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" 2>/dev/null)
+            code=$(curl -sS -o /tmp/body.json -w "%{http_code}" "http://127.0.0.1:8099$path" 2>/dev/null)
             echo "--- $path -> ${code:-none}"
             head -c 300 /tmp/body.json 2>/dev/null || true
             echo

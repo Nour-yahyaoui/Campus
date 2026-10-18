@@ -138,6 +138,7 @@ pub struct EventSummary {
     pub capacity: Option<i32>,
     pub registered_count: i64,
     pub waitlist_count: i64,
+    pub cover_url: Option<String>,
     pub club: Option<ClubRef>,
 }
 
@@ -150,10 +151,12 @@ pub struct ProjectSummary {
     pub summary: String,
     pub category: ProjectCategory,
     pub status: String,
+    pub cover_url: Option<String>,
     pub open_roles: i64,
     pub member_count: i64,
     pub lead: UserRef,
     pub club: Option<ClubRef>,
+    pub created_at: DateTime<Utc>,
     pub approved_at: Option<DateTime<Utc>>,
 }
 

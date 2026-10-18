@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CLUB_CATEGORIES } from "@campussphere/contracts";
 import { categoryLabel } from "@/lib/format";
-import { listClubs } from "@campussphere/core";
+import { readClubs } from "@/lib/reads";
 import { ClubCard, EmptyState, Pager } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
 import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
@@ -21,7 +21,7 @@ export default async function ClubsPage({
   searchParams: Promise<{ category?: string; q?: string; cursor?: string }>;
 }) {
   const params = await searchParams;
-  const clubs = await listClubs({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
+  const clubs = await readClubs({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
 
   const itemList = itemListJsonLd(
     clubs.items.map((club) => ({ name: club.name, path: `/clubs/${club.slug}` })),

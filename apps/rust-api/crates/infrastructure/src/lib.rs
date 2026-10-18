@@ -146,7 +146,7 @@ pub async fn list_events(pool: &PgPool, query: EventListQuery<'_>) -> StoreResul
     let rows = sqlx::query(
         r#"
         select e.id, e.slug, e.title, e.summary, e.category::text as category, e.status::text as status,
-               e.starts_at, e.ends_at, e.timezone, e.venue_name, e.online_url, e.capacity,
+               e.starts_at, e.ends_at, e.timezone, e.venue_name, e.online_url, e.capacity, e.cover_url,
                (select count(*) from event_registrations r
                  where r.event_id = e.id and r.status in ('registered','attended')) as registered_count,
                (select count(*) from event_registrations r
@@ -189,7 +189,7 @@ pub async fn list_projects(pool: &PgPool, query: ProjectListQuery<'_>) -> StoreR
     let rows = sqlx::query(
         r#"
         select p.id, p.slug, p.title, p.summary, p.category::text as category, p.status::text as status,
-               p.approved_at,
+               p.cover_url, p.created_at, p.approved_at,
                u.id as lead_id, u.name as lead_name, u.avatar_url as lead_avatar,
                c.id as club_id, c.slug as club_slug, c.name as club_name,
                (select count(*) from project_members pm where pm.project_id = p.id) as member_count,

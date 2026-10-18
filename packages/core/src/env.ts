@@ -65,9 +65,7 @@ const schema = z.object({
   API_BASE_URL: optionalUrl,
 
   // Operations dashboard. `API_BASE_URL` is the Actix service the dashboard
-  // probes; `METRICS_TOKEN` is optional and, when set on both services, keeps
-  // the detailed metrics endpoint from being readable by anyone else.
-  METRICS_TOKEN: optionalString,
+  // probes; its `/health/metrics` document is public by design.
   // Only used when the platform does not report a memory limit itself (Vercel
   // and Docker both do). It is a budget for the percentage, not a quota.
   SERVER_MEMORY_LIMIT_MB: optionalInteger,

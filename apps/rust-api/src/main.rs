@@ -113,18 +113,11 @@ async fn live() -> impl Responder {
     })
 }
 
-/// Process and host resources for the operations dashboard. Set
-/// `METRICS_TOKEN` on both services to keep this off the public internet.
-async fn health_metrics(state: web::Data<AppState>, request: HttpRequest) -> HttpResponse {
-    if !metrics::authorised(&request) {
-        return HttpResponse::Unauthorized().json(serde_json::json!({
-            "error": {
-                "code": "unauthorized",
-                "message": "This endpoint requires Authorization: Bearer <METRICS_TOKEN>."
-            }
-        }));
-    }
-
+/// Process and host resources for the operations dashboard. Deliberately
+/// unauthenticated: the document describes a process, and the dashboard that
+/// reads it is a separate deployment, so requiring a shared secret only meant
+/// that the panel stayed blank whenever the two copies drifted apart.
+async fn health_metrics(state: web::Data<AppState>) -> HttpResponse {
     let started = STARTED.get_or_init(Instant::now);
     let database_started = Instant::now();
     let ready = campussphere_infrastructure::ping(&state.pool).await;

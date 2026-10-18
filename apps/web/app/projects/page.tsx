@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PROJECT_CATEGORIES } from "@campussphere/contracts";
 import { categoryLabel } from "@/lib/format";
-import { listProjects } from "@campussphere/core";
+import { readProjects } from "@/lib/reads";
 import { EmptyState, Pager, ProjectCard } from "@/components/Pieces";
 import { ChipRow, SearchBox } from "@/components/Filters";
 import { absolute, itemListJsonLd, jsonLdString } from "@/lib/seo";
@@ -21,7 +21,7 @@ export default async function ProjectsPage({
   searchParams: Promise<{ category?: string; q?: string; cursor?: string }>;
 }) {
   const params = await searchParams;
-  const projects = await listProjects({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
+  const projects = await readProjects({ category: params.category, q: params.q, cursor: params.cursor, limit: 12 });
 
   const itemList = itemListJsonLd(
     projects.items.map((project) => ({ name: project.title, path: `/projects/${project.slug}` })),

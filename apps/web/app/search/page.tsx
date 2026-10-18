@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { searchAll } from "@campussphere/core";
+import { readSearch } from "@/lib/reads";
 import { ClubCard, EmptyState, EventRow, ProjectCard } from "@/components/Pieces";
 import { SearchBox } from "@/components/Filters";
 
@@ -20,7 +20,7 @@ export default async function SearchPage({
   const params = await searchParams;
   const query = (params.q ?? "").trim();
   const type = params.type === "clubs" || params.type === "projects" || params.type === "events" ? params.type : "all";
-  const results = query.length >= 2 ? await searchAll(query, type) : null;
+  const results = query.length >= 2 ? await readSearch(query, type) : null;
 
   return (
     <div className="shell">

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PRODUCT } from "@campussphere/contracts";
-import { listClubs, listEvents, listProjects, siteStats } from "@campussphere/core";
+import { siteStats } from "@campussphere/core";
+import { readClubs, readEvents, readProjects } from "@/lib/reads";
 import { ClubCard, EventRow, ProjectCard, StatStrip } from "@/components/Pieces";
 import {
   ClubCardsSkeleton,
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
 async function HeroSnapshot() {
   const [stats, events] = await Promise.all([
     siteStats().catch(() => ({ clubs: 0, projects: 0, events: 0, members: 0, confirmedAttendance: 0, asOf: "" })),
-    listEvents({ limit: 1, when: "upcoming" }).catch(() => ({ items: [], nextCursor: null })),
+    readEvents({ limit: 1, when: "upcoming" }).catch(() => ({ items: [], nextCursor: null })),
   ]);
   const nextEvent = events.items[0];
 
@@ -112,7 +113,7 @@ async function HeroStats() {
 }
 
 async function UpcomingEvents() {
-  const events = await listEvents({ limit: 4, when: "upcoming" }).catch(() => ({
+  const events = await readEvents({ limit: 4, when: "upcoming" }).catch(() => ({
     items: [],
     nextCursor: null,
   }));
@@ -136,7 +137,7 @@ async function UpcomingEvents() {
 }
 
 async function OpenClubs() {
-  const clubs = await listClubs({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
+  const clubs = await readClubs({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
 
   if (clubs.items.length === 0) {
     return (
@@ -157,7 +158,7 @@ async function OpenClubs() {
 }
 
 async function OpenProjects() {
-  const projects = await listProjects({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
+  const projects = await readProjects({ limit: 3 }).catch(() => ({ items: [], nextCursor: null }));
 
   if (projects.items.length === 0) {
     return (

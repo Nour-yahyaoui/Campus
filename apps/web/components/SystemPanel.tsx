@@ -264,7 +264,7 @@ export function SystemPanel() {
   const updated = snapshot ? new Date(snapshot.generatedAt).toLocaleTimeString("en-GB") : null;
 
   const pages =
-    "Pages are rendered per request on this deployment — sign-in, forms and writes all live here.";
+    "Pages are rendered here, and their public lists and search come from Actix when it answers. Sign-in, forms and writes always live here.";
 
   return (
     <section className="card srv-card" aria-labelledby="servers-heading">

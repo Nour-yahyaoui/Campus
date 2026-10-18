@@ -241,6 +241,18 @@ function describeFailure(error: unknown): string {
   return message.length > 140 ? `${message.slice(0, 140)}…` : message;
 }
 
+async function isAlive(base: string, headers: Record<string, string>): Promise<boolean> {
+  try {
+    const live = await fetch(new URL("/health/live", base), {
+      headers,
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    return live.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function probePrimary(env: Env): Promise<ServerNode> {
   const base = env.API_BASE_URL;
   if (!base) {
@@ -267,7 +279,6 @@ async function probePrimary(env: Env): Promise<ServerNode> {
   }
 
   const headers: Record<string, string> = { accept: "application/json" };
-  if (env.METRICS_TOKEN) headers.authorization = `Bearer ${env.METRICS_TOKEN}`;
 
   const started = performance.now();
   let response: Response | null = null;
@@ -333,33 +344,25 @@ async function probePrimary(env: Env): Promise<ServerNode> {
     return node;
   }
 
-  if (response && (response.status === 401 || response.status === 403)) {
+  if (response && (response.status === 401 || response.status === 403) && (await isAlive(base, headers))) {
+    // A build from before the token was removed still gates this route. The
+    // service itself is fine, so report that plainly instead of "offline".
     return primaryNode({
-      status: "offline",
-      detail: `The primary answered ${response.status}. Set METRICS_TOKEN to the same value on both services.`,
+      status: "degraded",
+      detail: "The primary is alive, but this build still asks for a token on /health/metrics. Redeploy it without METRICS_TOKEN.",
       url: base,
       latencyMs,
     });
   }
 
-  if (response && response.status === 404) {
-    // An older build without the metrics route: prove it is alive, then say so.
-    try {
-      const live = await fetch(new URL("/health/live", base), {
-        headers,
-        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-        });
-      if (live.ok) {
-        return primaryNode({
-          status: "degraded",
-          detail: "The primary is alive, but this build does not expose /health/metrics.",
-          url: base,
-          latencyMs,
-        });
-      }
-    } catch {
-      /* fall through to offline */
-    }
+  if (response && response.status === 404 && (await isAlive(base, headers))) {
+    // An older build without the metrics route at all.
+    return primaryNode({
+      status: "degraded",
+      detail: "The primary is alive, but this build does not expose /health/metrics.",
+      url: base,
+      latencyMs,
+    });
   }
 
   const detail = response
@@ -386,17 +389,17 @@ export async function systemSnapshot(): Promise<SystemSnapshot> {
       url: env.API_BASE_URL ?? null,
       detail:
         primary.status === "online"
-          ? "/api/v1/* is proxied to the Actix service. If it stops answering, this deployment answers the same queries itself."
+          ? "Pages and /api/v1/* read from the Actix service first. If it stops answering, this deployment answers the same queries itself."
           : primary.status === "degraded"
-            ? "/api/v1/* goes to the Actix service when it answers; this deployment answers the same queries when it does not."
+            ? "Pages and /api/v1/* go to the Actix service when it answers; this deployment answers the same queries when it does not."
             : primary.status === "not_configured"
-              ? "/api/v1/* is answered by this deployment: no primary is configured."
-              : "/api/v1/* is answered by this deployment while the Actix primary is not answering.",
+              ? "Everything is answered by this deployment: no primary is configured."
+              : "This deployment answers while the Actix primary is not answering.",
     },
     traffic: trafficRow.traffic,
     nodes: { primary, fallback },
     notes: [
-      "Next.js renders every page and every write. The Actix service, when configured, carries the public read API at /api/v1/*; this dashboard probes it directly instead of routing a page through it.",
+      "Next.js renders the pages and owns every write. Public lists, search and the /api/v1/* read API come from the Actix service when it answers; this dashboard probes that service directly.",
       "On Vercel each function instance reports its own memory. These are the numbers for the instance that answered this request, not a fleet total.",
       "Load average is the host's, not the container's, on shared platforms; CPU and memory are the process's own.",
       "The event-loop figure is a rolling window, reset on every reading. It needs 150 samples before it is shown, and no verdict is issued for the first 30 seconds of a process.",

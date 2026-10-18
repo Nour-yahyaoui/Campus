@@ -94,7 +94,7 @@ paths:
       description: |
         Memory, CPU, load average and database status for the operations
         dashboard. Fields the kernel does not expose are `null`, never zero.
-        Protected by `METRICS_TOKEN` when that variable is set.
+        Public by design: it describes a process, not a person.
       security: []
       responses:
         "200":
@@ -129,8 +129,6 @@ paths:
                       ready: { type: boolean }
                       migrations: { type: integer, nullable: true }
                       latencyMs: { type: integer, minimum: 0 }
-        "401":
-          description: METRICS_TOKEN is set and the bearer token did not match
   /clubs:
     get:
       tags: [Clubs]
@@ -400,7 +398,7 @@ components:
         upcomingEventCount: { type: integer }
     EventSummary:
       type: object
-      required: [id, slug, title, summary, category, status, startsAt, endsAt, timezone, registeredCount, waitlistCount]
+      required: [id, slug, title, summary, category, status, startsAt, endsAt, timezone, registeredCount, waitlistCount, coverUrl]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string }
@@ -418,13 +416,15 @@ components:
           type: [integer, "null"]
         registeredCount: { type: integer }
         waitlistCount: { type: integer }
+        coverUrl:
+          type: [string, "null"]
         club:
           oneOf:
             - $ref: "#/components/schemas/ClubRef"
             - type: "null"
     ProjectSummary:
       type: object
-      required: [id, slug, title, summary, category, status, openRoles, memberCount, lead]
+      required: [id, slug, title, summary, category, status, openRoles, memberCount, lead, coverUrl, createdAt]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string }
@@ -435,6 +435,9 @@ components:
         openRoles: { type: integer }
         memberCount: { type: integer }
         lead: { $ref: "#/components/schemas/UserRef" }
+        coverUrl:
+          type: [string, "null"]
+        createdAt: { type: string, format: date-time }
         club:
           oneOf:
             - $ref: "#/components/schemas/ClubRef"

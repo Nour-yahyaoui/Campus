@@ -7,11 +7,12 @@
 //! rather than a guess.
 //!
 //! The endpoint that serves this is `/health/metrics`. It is intentionally
-//! separate from `/health/live` so a probe can stay cheap, and it can be
-//! protected with `METRICS_TOKEN` when the service is on a public address.
+//! separate from `/health/live` so a cheap probe never pays for the `/proc`
+//! reads. It is unauthenticated by design: the numbers describe a process, not
+//! a person, and the operations dashboard has to be able to read them without a
+//! second secret to keep in sync. Put the service behind a network you control
+//! if you would rather they were not public.
 
-use actix_web::http::header;
-use actix_web::HttpRequest;
 use serde_json::{json, Value};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -131,37 +132,6 @@ pub fn cores() -> usize {
         .unwrap_or(1)
 }
 
-/// The detailed endpoint leaks process size and host load, so it is refused
-/// unless `METRICS_TOKEN` is configured **and** presented.
-///
-/// This used to fail open: an unset variable meant "no protection needed",
-/// which is the wrong default for an endpoint that reports memory, CPU, uptime,
-/// database latency and migration counts to whoever asks.
-pub fn authorised(request: &HttpRequest) -> bool {
-    let expected = std::env::var("METRICS_TOKEN").ok();
-    let presented = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "));
-    authorised_with(expected.as_deref(), presented)
-}
-
-fn authorised_with(expected: Option<&str>, presented: Option<&str>) -> bool {
-    let expected = match expected.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(value) => value,
-        None => return false,
-    };
-    match presented.map(str::trim) {
-        // Hashes both sides and compares them in constant time.
-        Some(token) => {
-            let hash = campussphere_security::hash_token(expected);
-            campussphere_security::verify_token(token, &hash)
-        }
-        None => false,
-    }
-}
-
 /// Builds the document served at `/health/metrics`. `database` is assembled by
 /// the caller because only it can run an async query.
 pub fn snapshot(uptime_seconds: u64, database: Value) -> Value {
@@ -195,29 +165,4 @@ pub fn snapshot(uptime_seconds: u64, database: Value) -> Value {
         },
         "database": database,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::authorised_with;
-
-    #[test]
-    fn fails_closed_without_a_configured_token() {
-        assert!(!authorised_with(None, Some("anything")));
-        assert!(!authorised_with(Some(""), Some("")));
-        assert!(!authorised_with(Some("   "), Some("   ")));
-    }
-
-    #[test]
-    fn rejects_a_wrong_or_missing_token() {
-        assert!(!authorised_with(Some("right"), Some("wrong")));
-        assert!(!authorised_with(Some("right"), None));
-        assert!(!authorised_with(Some("right"), Some("")));
-    }
-
-    #[test]
-    fn accepts_the_configured_token() {
-        assert!(authorised_with(Some("right"), Some("right")));
-        assert!(authorised_with(Some(" right "), Some("right")));
-    }
 }

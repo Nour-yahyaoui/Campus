@@ -317,7 +317,7 @@ The full blueprint is [`deployment/render-full.yaml`](../deployment/render-full.
 | `campussphere-web` | `DATABASE_URL` (pooled), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AWS_*` + `STORAGE_PUBLIC_BASE_URL` if used (Step 4b) |
 | `campussphere-fallback-api` | `DATABASE_URL` (pooled) |
 | `campussphere-worker` | `DATABASE_URL` (pooled), `AWS_*` (Step 4b) |
-| `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it. Optionally `METRICS_TOKEN` (see below) |
+| `campussphere-rust-api` | `DATABASE_URL` (pooled) — only if you deploy it |
 
 5. If you are **not** deploying the Rust API yet, delete its block from
    `render-full.yaml` before applying (or suspend the service afterwards). It is
@@ -340,16 +340,20 @@ What the blueprint already handles, and why:
 ### Watching the Rust service from the admin dashboard
 
 Admin → Overview → **Servers** probes `GET <API_BASE_URL>/health/metrics` every
-ten seconds. Two optional variables wire it up:
+ten seconds. One optional variable wires it up:
 
 ```bash
 # On the Next.js service. Use the service root — no trailing /api.
 # Health lives at /health/*, the read API at /api/v1/*, so a base ending in
 # /api would make the probe ask for /api/health/metrics and get a 404.
 API_BASE_URL=https://<your-service>.onrender.com
-# On both services, with the same value, to keep the numbers private
-METRICS_TOKEN=<long random string>
 ```
+
+The same variable decides who serves public reads: with it set, the pages and
+`/api/v1/*` ask the Rust service first, and if it is asleep or down they are
+answered from this deployment's own database. Without it everything is answered
+by Next.js and the panel reports the primary as *not configured*; it never
+invents a second server.
 
 The same variable also decides who serves the public read API: with it set,
 `/api/v1/*` on your site is proxied to the Rust service, and if that service is

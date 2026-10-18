@@ -185,6 +185,7 @@ pub async fn list_events(
             capacity: row.get("capacity"),
             registered_count: row.get("registered_count"),
             waitlist_count: row.get("waitlist_count"),
+            cover_url: row.get("cover_url"),
             club: club_id.map(|club_id| ClubRef {
                 id: club_id,
                 slug: row.get("club_slug"),
@@ -230,6 +231,8 @@ pub async fn list_projects(
             summary: row.get("summary"),
             category: project_category_from(row.get::<String, _>("category").as_str()),
             status: row.get("status"),
+            cover_url: row.get("cover_url"),
+            created_at: row.get("created_at"),
             open_roles: row.get("open_roles"),
             member_count: row.get("member_count"),
             lead: UserRef {
