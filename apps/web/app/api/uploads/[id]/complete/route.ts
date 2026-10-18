@@ -1,6 +1,13 @@
 import { cookies } from "next/headers";
 import { SESSION_COOKIE } from "@campussphere/contracts";
-import { completeUpload, enforceRateLimit, handleApi, jsonResponse, resolveSession } from "@campussphere/core";
+import {
+  assertSameOrigin,
+  completeUpload,
+  enforceRateLimit,
+  handleApi,
+  jsonResponse,
+  resolveSession,
+} from "@campussphere/core";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +23,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     if (!me) {
       return jsonResponse({ error: { code: "unauthorized", message: "Sign in to upload images." } }, 401);
     }
+    assertSameOrigin(request);
     await enforceRateLimit(request, "media.complete", 60, 3600, me.id);
     const asset = await completeUpload(me, id);
     return jsonResponse({ url: asset.url, media: asset });

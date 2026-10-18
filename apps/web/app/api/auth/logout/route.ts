@@ -1,11 +1,23 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@campussphere/contracts";
-import { revokeSession } from "@campussphere/core";
+import { assertSameOrigin, isAppError, revokeSession } from "@campussphere/core";
 import { absoluteUrl } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  // Signing someone out is a state change, so it gets the same origin check as
+  // other cookie-authenticated mutations; otherwise any page can log a visitor
+  // out by posting to this URL.
+  try {
+    assertSameOrigin(request);
+  } catch (error) {
+    const status = isAppError(error) ? error.status : 403;
+    return NextResponse.json(
+      { error: { code: "forbidden", message: "Cross-origin request blocked." } },
+      { status },
+    );
+  }
   const cookieHeader = request.headers.get("cookie") ?? "";
   const match = cookieHeader
     .split(";")

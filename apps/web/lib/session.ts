@@ -54,8 +54,4 @@ export async function signInAndSetCookie(userId: string, meta: { userAgent?: str
   return session;
 }
 
-export function safeNext(value: string | null | undefined): string {
-  if (!value) return "/dashboard";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
-}
+export { safeNext } from "./next-path";
