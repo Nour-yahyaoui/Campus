@@ -15,7 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@campussphere/contracts": "*",
     "jose": "^6.2.12",
-    "nodemailer": "^10.1.4",
+    "nodemailer": "^10.2.1",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "zod": "^4.6.7"
